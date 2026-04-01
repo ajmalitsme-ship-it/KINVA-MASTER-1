@@ -1,0 +1,31 @@
+# Core
+flask
+flask-socketio
+flask-cors
+python-telegram-bot==20.7
+pillow
+numpy
+opencv-python
+scipy
+scikit-image
+
+# Video/Audio
+moviepy
+pydub
+librosa
+soundfile
+
+# Downloaders
+yt-dlp
+instaloader
+beautifulsoup4
+requests
+
+# Payments
+stripe
+qrcode
+
+# Utilities
+python-dotenv
+gunicorn
+eventlet
