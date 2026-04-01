@@ -87,7 +87,7 @@ class Config:
     """Master Configuration Class"""
     
     # Bot Configuration
-    BOT_TOKEN = os.environ.get("BOT_TOKEN", "8791110410:AAExFT69YbsdxtU7WOXYbZe0VeV9T4ex2vc")
+    BOT_TOKEN = os.environ.get("BOT_TOKEN", "8791110410:AAGDvRjSJ4OvMgcYG8pOL7aCZXhkkHopEig")
     ADMIN_IDS = [int(id) for id in os.environ.get("ADMIN_IDS", "8525952693").split(",")]
     WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://KinvaMaster-1.onrender.com")
     PORT = int(os.environ.get("PORT", 8080))
