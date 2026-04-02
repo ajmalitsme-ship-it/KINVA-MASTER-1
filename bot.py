@@ -882,7 +882,7 @@ class PremiumManager:
     def __init__(self):
         self.plans = {
             "monthly": {"days": 30, "price_usd": Config.PREMIUM_PRICE_MONTHLY_USD, "price_inr": Config.PREMIUM_PRICE_MONTHLY_INR, "stars": Config.PREMIUM_PRICE_MONTHLY_STARS},
-            "yearly": {"days": 365, "price_usd": Config.PREMIUM_PRICE_YEARLY_USD, "price_inr": Config.PREMIUM_PRICE_YEARLY_INR, "stars": Config.PREMIUM_PRICE_YEARLY_STARS},
+            "yearly": {"days": 365, "price_usd": Config.PREMIUM_PRICE_YEARLY_USD, "price_inr": Config.PREMIUM_PRICE_YEARLY_INR,"stars": Config.PREMIUM_PRICE_YEARLY_INR},
             "lifetime": {"days": 3650, "price_usd": Config.PREMIUM_PRICE_LIFETIME_USD, "price_inr": Config.PREMIUM_PRICE_LIFETIME_INR, "stars": Config.PREMIUM_PRICE_LIFETIME_STARS}
         }
     
