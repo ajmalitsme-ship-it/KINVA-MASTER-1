@@ -58,7 +58,7 @@ class KinvaMasterBot:
     """Main Bot Class with Complete Editing System"""
     
     def __init__(self):
-        self.db = Database()
+        self.db = db
         self.video_editor = VideoEditor()
         self.image_editor = ImageEditor()
         self.filters = Filters()
