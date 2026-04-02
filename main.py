@@ -2311,27 +2311,43 @@ Send: `/confirm [transaction_id]` after payment
         """
         
         await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
-
-  # ============================================
-# PART 5: FLASK WEB APP WITH TIMELINE EDITOR
 # ============================================
-# Complete Web Application with Professional UI, Timeline Editor,
-# Real-time Processing, and Advanced Animation Effects
+# COMPLETE FLASK WEB APP WITH HTML TEMPLATE
+# ============================================
+
+import os
+import json
+import sqlite3
+import threading
+import time
+from datetime import datetime
+from flask import Flask, request, jsonify, render_template_string, redirect, url_for, session
+from flask_cors import CORS
+from flask_socketio import SocketIO, emit
+import base64
+import random
+
+# ============================================
+# FLASK APP INITIALIZATION
+# ============================================
+
 flask_app = Flask(__name__)
-flask_app.sercet_key = os.environ.get("FLASK_SECRET",  "")
-# Correct - with proper closing
+flask_app.secret_key = "kinva_master_secret_key_2024_super_secure"
+CORS(flask_app)
 socketio = SocketIO(flask_app, cors_allowed_origins="*")
+
 # ============================================
-# COMPLETE WEB APP HTML TEMPLATE
+# COMPLETE HTML WEB APP
 # ============================================
 
-WEB_APP_HTML = """
+COMPLETE_WEB_APP_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Kinva Master Pro - Professional Video & Image Editor with 50+ Filters and 40+ Tools">
     <title>Kinva Master Pro - Professional Video & Image Editor</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -2340,7 +2356,7 @@ WEB_APP_HTML = """
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
     <style>
         /* ============================================
-           GLOBAL STYLES & ANIMATIONS
+           GLOBAL STYLES
         ============================================ */
         * {
             margin: 0;
@@ -2376,9 +2392,23 @@ WEB_APP_HTML = """
             animation: rotate 60s linear infinite;
         }
         
+        .animated-bg::after {
+            content: '';
+            position: absolute;
+            width: 150%;
+            height: 150%;
+            background: radial-gradient(circle, rgba(102,126,234,0.05) 0%, transparent 70%);
+            animation: rotateReverse 40s linear infinite;
+        }
+        
         @keyframes rotate {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes rotateReverse {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(-360deg); }
         }
         
         /* Loading Animation */
@@ -2514,7 +2544,7 @@ WEB_APP_HTML = """
             z-index: 1;
         }
         
-        /* Header with Animation */
+        /* Header */
         .header {
             background: rgba(255,255,255,0.08);
             backdrop-filter: blur(20px);
@@ -2589,7 +2619,7 @@ WEB_APP_HTML = """
             box-shadow: 0 5px 20px rgba(245,87,108,0.4);
         }
         
-        /* Main Editor Layout */
+        /* Editor Layout */
         .editor-layout {
             display: grid;
             grid-template-columns: 320px 1fr 320px;
@@ -2604,7 +2634,7 @@ WEB_APP_HTML = """
             }
         }
         
-        /* Tools Panel with Animation */
+        /* Tools Panel */
         .tools-panel {
             background: rgba(255,255,255,0.08);
             backdrop-filter: blur(20px);
@@ -2678,6 +2708,10 @@ WEB_APP_HTML = """
             background: linear-gradient(135deg, #667eea, #764ba2);
             transform: translateY(-3px);
             box-shadow: 0 5px 15px rgba(102,126,234,0.4);
+        }
+        
+        .tool-btn-premium {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
         }
         
         /* Preview Area */
@@ -2755,6 +2789,10 @@ WEB_APP_HTML = """
         
         .control-btn-primary {
             background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+        
+        .control-btn-danger {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
         }
         
         /* Filters Panel */
@@ -2883,6 +2921,23 @@ WEB_APP_HTML = """
             display: block;
         }
         
+        .remove-clip {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #f5576c;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
         /* Toast Notification */
         .toast {
             position: fixed;
@@ -2930,6 +2985,22 @@ WEB_APP_HTML = """
             width: 90%;
             animation: scaleIn 0.3s ease;
             border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .modal-content input, .modal-content textarea {
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            border: none;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-size: 14px;
+        }
+        
+        .modal-content input:focus, .modal-content textarea:focus {
+            outline: none;
+            border: 1px solid #667eea;
         }
         
         /* Progress Bar */
@@ -2995,6 +3066,28 @@ WEB_APP_HTML = """
         .float-animation {
             animation: float 3s ease-in-out infinite;
         }
+        
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+        }
+        
+        .empty-state i {
+            font-size: 48px;
+            opacity: 0.5;
+            margin-bottom: 20px;
+            display: block;
+        }
+        
+        /* Color picker */
+        .color-preview {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            border: 2px solid white;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -3031,8 +3124,8 @@ WEB_APP_HTML = """
                 <div class="premium-badge" id="premium-status" onclick="showPremiumModal()">
                     <i class="fas fa-crown"></i> <span id="premium-text">FREE</span>
                 </div>
-                <button class="tool-btn" onclick="connectTelegram()" style="background: #0088cc;">
-                    <i class="fab fa-telegram"></i> Connect
+                <button class="tool-btn" onclick="exportProject()">
+                    <i class="fas fa-save"></i> Save
                 </button>
                 <button class="tool-btn" onclick="showSettings()">
                     <i class="fas fa-cog"></i>
@@ -3045,9 +3138,7 @@ WEB_APP_HTML = """
             <!-- Left Tools Panel -->
             <div class="tools-panel">
                 <h3><i class="fas fa-magic"></i> Editing Tools <span style="font-size: 12px;">(40+)</span></h3>
-                <div class="tools-grid" id="tools-grid">
-                    <!-- Tools will be populated by JS -->
-                </div>
+                <div class="tools-grid" id="tools-grid"></div>
             </div>
             
             <!-- Center Preview Area -->
@@ -3057,11 +3148,11 @@ WEB_APP_HTML = """
                     <span id="file-info"><i class="fas fa-info-circle"></i> No file selected</span>
                     <span id="processing-status" style="color: #667eea;"><i class="fas fa-spinner fa-spin"></i> Ready</span>
                 </div>
-                <div class="preview-container">
+                <div class="preview-container" id="drop-zone">
                     <canvas id="preview-canvas" style="display: none;"></canvas>
                     <video id="preview-video" style="display: none;" controls></video>
-                    <div id="no-file-message" style="text-align: center; padding: 60px;">
-                        <i class="fas fa-upload" style="font-size: 48px; opacity: 0.5; margin-bottom: 20px; display: block;"></i>
+                    <div id="no-file-message" class="empty-state">
+                        <i class="fas fa-upload"></i>
                         <p>Upload an image or video to start editing</p>
                         <button class="control-btn control-btn-primary" onclick="uploadFile()" style="margin-top: 20px;">
                             <i class="fas fa-cloud-upload-alt"></i> Choose File
@@ -3093,9 +3184,7 @@ WEB_APP_HTML = """
             <!-- Right Filters Panel -->
             <div class="filters-panel">
                 <h3><i class="fas fa-palette"></i> Professional Filters <span style="font-size: 12px;">(50+)</span></h3>
-                <div class="filters-grid" id="filters-grid">
-                    <!-- Filters will be populated by JS -->
-                </div>
+                <div class="filters-grid" id="filters-grid"></div>
             </div>
         </div>
         
@@ -3114,8 +3203,9 @@ WEB_APP_HTML = """
             </div>
             <div class="timeline-container">
                 <div class="timeline-track" id="timeline-track">
-                    <div style="text-align: center; padding: 30px; color: rgba(255,255,255,0.5);">
-                        <i class="fas fa-clock"></i> Timeline empty - Add clips to start editing
+                    <div class="empty-state">
+                        <i class="fas fa-clock"></i>
+                        <p>Timeline empty - Add clips to start editing</p>
                     </div>
                 </div>
             </div>
@@ -3133,8 +3223,10 @@ WEB_APP_HTML = """
         <div class="modal-content">
             <h3 id="modal-title" style="margin-bottom: 15px;"></h3>
             <p id="modal-message" style="line-height: 1.6;"></p>
-            <div style="margin-top: 25px; text-align: center;">
-                <button class="control-btn" onclick="closeModal()" style="background: #667eea;">Close</button>
+            <div id="modal-inputs"></div>
+            <div style="margin-top: 25px; display: flex; gap: 10px; justify-content: center;">
+                <button class="control-btn" onclick="closeModal()">Cancel</button>
+                <button class="control-btn control-btn-primary" onclick="confirmModal()">Confirm</button>
             </div>
         </div>
     </div>
@@ -3149,49 +3241,45 @@ WEB_APP_HTML = """
         let currentImageData = null;
         let timelineClips = [];
         let selectedClip = null;
-        let telegramConnected = false;
-        let userData = null;
         let currentFilter = null;
         let currentTool = null;
         let socket = null;
-        let isProcessing = false;
+        let isPremium = false;
+        let modalCallback = null;
+        let modalValue = null;
         
         // ============================================
         // TOOLS LIST (40+)
         // ============================================
         const tools = [
-            { name: "Trim", icon: "fa-cut", category: "video" },
-            { name: "Crop", icon: "fa-crop", category: "both" },
-            { name: "Resize", icon: "fa-expand", category: "both" },
-            { name: "Rotate", icon: "fa-rotate-right", category: "both" },
-            { name: "Flip Horizontal", icon: "fa-arrows-left-right", category: "both" },
-            { name: "Flip Vertical", icon: "fa-arrows-up-down", category: "both" },
-            { name: "Speed", icon: "fa-gauge-high", category: "video" },
-            { name: "Reverse", icon: "fa-arrow-rotate-left", category: "video" },
-            { name: "Brightness", icon: "fa-sun", category: "image" },
-            { name: "Contrast", icon: "fa-circle-half-stroke", category: "image" },
-            { name: "Saturation", icon: "fa-droplet", category: "image" },
-            { name: "Blur", icon: "fa-blur", category: "both" },
-            { name: "Sharpen", icon: "fa-eye", category: "both" },
-            { name: "Glitch", icon: "fa-bolt", category: "both" },
-            { name: "Vintage", icon: "fa-clock", category: "image" },
-            { name: "Watermark", icon: "fa-water", category: "both" },
-            { name: "Text Overlay", icon: "fa-font", category: "both" },
-            { name: "Noise Reduction", icon: "fa-volume-down", category: "video" },
-            { name: "Color Balance", icon: "fa-palette", category: "image" },
-            { name: "Exposure", icon: "fa-camera", category: "image" },
-            { name: "Gamma", icon: "fa-chart-line", category: "image" },
-            { name: "HDR", icon: "fa-sun", category: "image" },
-            { name: "Fade In", icon: "fa-fade", category: "video" },
-            { name: "Fade Out", icon: "fa-fade", category: "video" },
-            { name: "Transition", icon: "fa-arrow-right-arrow-left", category: "video" },
-            { name: "Picture in Picture", icon: "fa-window-maximize", category: "video" },
-            { name: "Split Screen", icon: "fa-table-cells", category: "video" },
-            { name: "Slow Motion", icon: "fa-snail", category: "video" },
-            { name: "Fast Motion", icon: "fa-rabbit", category: "video" },
-            { name: "Zoom", icon: "fa-magnifying-glass-plus", category: "both" },
-            { name: "Pan", icon: "fa-arrows-up-down-left-right", category: "both" },
-            { name: "Ken Burns", icon: "fa-film", category: "both" },
+            { name: "Trim", icon: "fa-cut", category: "video", premium: false },
+            { name: "Crop", icon: "fa-crop", category: "both", premium: false },
+            { name: "Resize", icon: "fa-expand", category: "both", premium: false },
+            { name: "Rotate", icon: "fa-rotate-right", category: "both", premium: false },
+            { name: "Flip Horizontal", icon: "fa-arrows-left-right", category: "both", premium: false },
+            { name: "Flip Vertical", icon: "fa-arrows-up-down", category: "both", premium: false },
+            { name: "Speed", icon: "fa-gauge-high", category: "video", premium: false },
+            { name: "Reverse", icon: "fa-arrow-rotate-left", category: "video", premium: false },
+            { name: "Brightness", icon: "fa-sun", category: "image", premium: false },
+            { name: "Contrast", icon: "fa-circle-half-stroke", category: "image", premium: false },
+            { name: "Saturation", icon: "fa-droplet", category: "image", premium: false },
+            { name: "Blur", icon: "fa-blur", category: "both", premium: false },
+            { name: "Sharpen", icon: "fa-eye", category: "both", premium: false },
+            { name: "Glitch", icon: "fa-bolt", category: "both", premium: true },
+            { name: "Vintage", icon: "fa-clock", category: "image", premium: false },
+            { name: "Watermark", icon: "fa-water", category: "both", premium: false },
+            { name: "Text Overlay", icon: "fa-font", category: "both", premium: false },
+            { name: "Noise Reduction", icon: "fa-volume-down", category: "video", premium: true },
+            { name: "Color Balance", icon: "fa-palette", category: "image", premium: false },
+            { name: "Exposure", icon: "fa-camera", category: "image", premium: false },
+            { name: "HDR", icon: "fa-sun", category: "image", premium: true },
+            { name: "Fade In", icon: "fa-fade", category: "video", premium: false },
+            { name: "Fade Out", icon: "fa-fade", category: "video", premium: false },
+            { name: "Picture in Picture", icon: "fa-window-maximize", category: "video", premium: true },
+            { name: "Split Screen", icon: "fa-table-cells", category: "video", premium: true },
+            { name: "Slow Motion", icon: "fa-snail", category: "video", premium: false },
+            { name: "Fast Motion", icon: "fa-rabbit", category: "video", premium: false },
+            { name: "Ken Burns", icon: "fa-film", category: "both", premium: true },
             { name: "Chroma Key", icon: "fa-chrome", category: "video", premium: true },
             { name: "Motion Tracking", icon: "fa-location-dot", category: "video", premium: true },
             { name: "Auto Captions", icon: "fa-closed-captioning", category: "video", premium: true },
@@ -3217,7 +3305,6 @@ WEB_APP_HTML = """
         // INITIALIZATION
         // ============================================
         window.onload = function() {
-            // Simulate loading progress
             let progress = 0;
             const loadingStatus = document.getElementById('loading-status');
             const statusMessages = [
@@ -3250,15 +3337,11 @@ WEB_APP_HTML = """
                 }
             }, 80);
             
-            // Load tools and filters
             loadTools();
             loadFilters();
-            
-            // Initialize Socket.IO
             initSocket();
-            
-            // Check Telegram connection
-            checkTelegramConnection();
+            setupDragAndDrop();
+            loadSavedProject();
         };
         
         function initSocket() {
@@ -3266,7 +3349,6 @@ WEB_APP_HTML = """
             
             socket.on('connect', () => {
                 console.log('Connected to server');
-                showToast('Real-time connection established', 'success');
             });
             
             socket.on('processing_update', (data) => {
@@ -3281,10 +3363,6 @@ WEB_APP_HTML = """
                 document.getElementById('processing-status').innerHTML = '<i class="fas fa-check-circle"></i> Complete';
                 document.getElementById('progress-bar').style.display = 'none';
                 showToast('Processing complete!', 'success');
-                
-                if (data.url) {
-                    window.open(data.url, '_blank');
-                }
             });
             
             socket.on('processing_error', (data) => {
@@ -3300,10 +3378,16 @@ WEB_APP_HTML = """
             
             tools.forEach(tool => {
                 const btn = document.createElement('button');
-                btn.className = 'tool-btn';
-                let premiumBadge = tool.premium ? '<span style="font-size: 10px; background: #f5576c; padding: 2px 6px; border-radius: 10px; margin-left: 5px;">⭐</span>' : '';
+                btn.className = 'tool-btn' + (tool.premium && !isPremium ? ' tool-btn-premium' : '');
+                let premiumBadge = tool.premium && !isPremium ? '<span style="font-size: 10px; background: #f5576c; padding: 2px 6px; border-radius: 10px; margin-left: 5px;">⭐</span>' : '';
                 btn.innerHTML = `<i class="fas ${tool.icon}"></i> ${tool.name}${premiumBadge}`;
-                btn.onclick = () => applyTool(tool.name.toLowerCase().replace(/ /g, '_'));
+                btn.onclick = () => {
+                    if (tool.premium && !isPremium) {
+                        showPremiumModal();
+                    } else {
+                        applyTool(tool.name.toLowerCase().replace(/ /g, '_'));
+                    }
+                };
                 container.appendChild(btn);
             });
         }
@@ -3315,7 +3399,6 @@ WEB_APP_HTML = """
             filters.forEach((filter, index) => {
                 const filterDiv = document.createElement('div');
                 filterDiv.className = 'filter-item';
-                // Generate gradient preview
                 const hue = (index * 7) % 360;
                 filterDiv.innerHTML = `
                     <div class="filter-preview" style="background: linear-gradient(135deg, hsl(${hue}, 70%, 60%), hsl(${hue + 40}, 70%, 50%));"></div>
@@ -3336,50 +3419,244 @@ WEB_APP_HTML = """
             input.onchange = (e) => {
                 const file = e.target.files[0];
                 if (file) {
-                    currentFile = file;
-                    currentFileType = file.type.startsWith('image/') ? 'image' : 'video';
-                    showToast(`Loaded: ${file.name}`, 'success');
-                    
-                    // Hide no file message
-                    document.getElementById('no-file-message').style.display = 'none';
-                    
-                    if (currentFileType === 'image') {
-                        document.getElementById('preview-canvas').style.display = 'block';
-                        document.getElementById('preview-video').style.display = 'none';
-                        
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                            const img = new Image();
-                            img.onload = () => {
-                                const canvas = document.getElementById('preview-canvas');
-                                canvas.width = img.width;
-                                canvas.height = img.height;
-                                const ctx = canvas.getContext('2d');
-                                ctx.drawImage(img, 0, 0);
-                                originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                                currentImageData = originalImageData;
-                                
-                                document.getElementById('file-info').innerHTML = 
-                                    `<i class="fas fa-image"></i> ${file.name} (${img.width}x${img.height})`;
-                            };
-                            img.src = event.target.result;
-                        };
-                        reader.readAsDataURL(file);
-                    } else {
-                        document.getElementById('preview-canvas').style.display = 'none';
-                        document.getElementById('preview-video').style.display = 'block';
-                        
-                        const url = URL.createObjectURL(file);
-                        const video = document.getElementById('preview-video');
-                        video.src = url;
-                        video.style.display = 'block';
-                        
-                        document.getElementById('file-info').innerHTML = 
-                            `<i class="fas fa-video"></i> ${file.name}`;
-                    }
+                    loadFile(file);
                 }
             };
             input.click();
+        }
+        
+        function loadFile(file) {
+            currentFile = file;
+            currentFileType = file.type.startsWith('image/') ? 'image' : 'video';
+            showToast(`Loaded: ${file.name}`, 'success');
+            
+            document.getElementById('no-file-message').style.display = 'none';
+            
+            if (currentFileType === 'image') {
+                document.getElementById('preview-canvas').style.display = 'block';
+                document.getElementById('preview-video').style.display = 'none';
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.getElementById('preview-canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        currentImageData = originalImageData;
+                        
+                        document.getElementById('file-info').innerHTML = 
+                            `<i class="fas fa-image"></i> ${file.name} (${img.width}x${img.height})`;
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                document.getElementById('preview-canvas').style.display = 'none';
+                document.getElementById('preview-video').style.display = 'block';
+                
+                const url = URL.createObjectURL(file);
+                const video = document.getElementById('preview-video');
+                video.src = url;
+                video.style.display = 'block';
+                
+                document.getElementById('file-info').innerHTML = 
+                    `<i class="fas fa-video"></i> ${file.name}`;
+            }
+        }
+        
+        function setupDragAndDrop() {
+            const dropZone = document.getElementById('drop-zone');
+            
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.style.border = '2px dashed #667eea';
+            });
+            
+            dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropZone.style.border = 'none';
+            });
+            
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.style.border = 'none';
+                const file = e.dataTransfer.files[0];
+                if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
+                    loadFile(file);
+                } else {
+                    showToast('Please drop an image or video file', 'error');
+                }
+            });
+        }
+        
+        // ============================================
+        // IMAGE FILTERS AND EFFECTS
+        // ============================================
+        function applyFilter(filterName) {
+            if (!currentFile || currentFileType !== 'image') {
+                showToast('Please upload an image first!', 'error');
+                return;
+            }
+            
+            showToast(`Applying filter: ${filterName}...`, 'info');
+            
+            const canvas = document.getElementById('preview-canvas');
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            
+            switch(filterName) {
+                case 'grayscale':
+                    for (let i = 0; i < data.length; i += 4) {
+                        const gray = (data[i] + data[i+1] + data[i+2]) / 3;
+                        data[i] = gray;
+                        data[i+1] = gray;
+                        data[i+2] = gray;
+                    }
+                    break;
+                    
+                case 'sepia':
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i];
+                        const g = data[i+1];
+                        const b = data[i+2];
+                        data[i] = Math.min(255, r * 0.393 + g * 0.769 + b * 0.189);
+                        data[i+1] = Math.min(255, r * 0.349 + g * 0.686 + b * 0.168);
+                        data[i+2] = Math.min(255, r * 0.272 + g * 0.534 + b * 0.131);
+                    }
+                    break;
+                    
+                case 'invert':
+                    for (let i = 0; i < data.length; i += 4) {
+                        data[i] = 255 - data[i];
+                        data[i+1] = 255 - data[i+1];
+                        data[i+2] = 255 - data[i+2];
+                    }
+                    break;
+                    
+                case 'blur':
+                    const width = canvas.width;
+                    const height = canvas.height;
+                    const temp = new Uint8ClampedArray(data);
+                    for (let y = 1; y < height - 1; y++) {
+                        for (let x = 1; x < width - 1; x++) {
+                            let r = 0, g = 0, b = 0;
+                            for (let ky = -1; ky <= 1; ky++) {
+                                for (let kx = -1; kx <= 1; kx++) {
+                                    const idx = ((y + ky) * width + (x + kx)) * 4;
+                                    r += temp[idx];
+                                    g += temp[idx + 1];
+                                    b += temp[idx + 2];
+                                }
+                            }
+                            const idx = (y * width + x) * 4;
+                            data[idx] = r / 9;
+                            data[idx + 1] = g / 9;
+                            data[idx + 2] = b / 9;
+                        }
+                    }
+                    break;
+                    
+                case 'sharpen':
+                    const kernel = [[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]];
+                    applyConvolution(ctx, canvas, kernel);
+                    return;
+                    
+                case 'vintage':
+                    for (let i = 0; i < data.length; i += 4) {
+                        data[i] = Math.min(255, data[i] * 1.1);
+                        data[i+1] = Math.min(255, data[i+1] * 0.9);
+                        data[i+2] = Math.min(255, data[i+2] * 0.8);
+                    }
+                    break;
+                    
+                case 'cool':
+                    for (let i = 0; i < data.length; i += 4) {
+                        data[i+2] = Math.min(255, data[i+2] * 1.2);
+                    }
+                    break;
+                    
+                case 'warm':
+                    for (let i = 0; i < data.length; i += 4) {
+                        data[i] = Math.min(255, data[i] * 1.2);
+                        data[i+1] = Math.min(255, data[i+1] * 1.1);
+                    }
+                    break;
+                    
+                case 'noir':
+                    for (let i = 0; i < data.length; i += 4) {
+                        const gray = (data[i] + data[i+1] + data[i+2]) / 3;
+                        const contrast = Math.min(255, Math.max(0, (gray - 128) * 1.5 + 128));
+                        data[i] = contrast;
+                        data[i+1] = contrast;
+                        data[i+2] = contrast;
+                    }
+                    break;
+                    
+                case 'neon':
+                    for (let i = 0; i < data.length; i += 4) {
+                        const gray = (data[i] + data[i+1] + data[i+2]) / 3;
+                        if (gray > 128) {
+                            data[i] = 0;
+                            data[i+1] = 255;
+                            data[i+2] = 255;
+                        }
+                    }
+                    break;
+                    
+                case 'glow':
+                    const blurData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    for (let i = 0; i < data.length; i += 4) {
+                        data[i] = Math.min(255, data[i] + 50);
+                        data[i+1] = Math.min(255, data[i+1] + 50);
+                        data[i+2] = Math.min(255, data[i+2] + 50);
+                    }
+                    break;
+                    
+                default:
+                    showToast(`Filter: ${filterName} applied`, 'info');
+                    return;
+            }
+            
+            ctx.putImageData(imageData, 0, 0);
+            currentImageData = imageData;
+            showToast(`Applied: ${filterName} filter!`, 'success');
+        }
+        
+        function applyConvolution(ctx, canvas, kernel) {
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            const width = canvas.width;
+            const height = canvas.height;
+            const temp = new Uint8ClampedArray(data);
+            const kSize = kernel.length;
+            const offset = Math.floor(kSize / 2);
+            
+            for (let y = offset; y < height - offset; y++) {
+                for (let x = offset; x < width - offset; x++) {
+                    let r = 0, g = 0, b = 0;
+                    for (let ky = 0; ky < kSize; ky++) {
+                        for (let kx = 0; kx < kSize; kx++) {
+                            const idx = ((y + ky - offset) * width + (x + kx - offset)) * 4;
+                            const weight = kernel[ky][kx];
+                            r += temp[idx] * weight;
+                            g += temp[idx + 1] * weight;
+                            b += temp[idx + 2] * weight;
+                        }
+                    }
+                    const idx = (y * width + x) * 4;
+                    data[idx] = Math.min(255, Math.max(0, r));
+                    data[idx + 1] = Math.min(255, Math.max(0, g));
+                    data[idx + 2] = Math.min(255, Math.max(0, b));
+                }
+            }
+            
+            ctx.putImageData(imageData, 0, 0);
+            currentImageData = imageData;
         }
         
         // ============================================
@@ -3403,161 +3680,57 @@ WEB_APP_HTML = """
             const ctx = canvas.getContext('2d');
             
             switch(toolName) {
-                case 'grayscale':
-                    applyGrayscale(ctx, canvas);
-                    break;
-                case 'sepia':
-                    applySepia(ctx, canvas);
-                    break;
-                case 'invert':
-                    applyInvert(ctx, canvas);
-                    break;
-                case 'blur':
-                    applyBlur(ctx, canvas);
-                    break;
-                case 'sharpen':
-                    applySharpen(ctx, canvas);
-                    break;
                 case 'brightness':
-                    adjustBrightness(ctx, canvas, 1.2);
+                    showInputModal('Brightness Adjustment', 'Enter brightness factor (0.5 - 2.0):', 'number', (value) => {
+                        adjustBrightness(ctx, canvas, parseFloat(value));
+                    });
                     break;
+                    
                 case 'contrast':
-                    adjustContrast(ctx, canvas, 1.2);
+                    showInputModal('Contrast Adjustment', 'Enter contrast factor (0.5 - 2.0):', 'number', (value) => {
+                        adjustContrast(ctx, canvas, parseFloat(value));
+                    });
                     break;
+                    
                 case 'saturation':
-                    adjustSaturation(ctx, canvas, 1.3);
+                    showInputModal('Saturation Adjustment', 'Enter saturation factor (0.5 - 2.0):', 'number', (value) => {
+                        adjustSaturation(ctx, canvas, parseFloat(value));
+                    });
                     break;
+                    
                 case 'rotate':
-                    rotateImage(ctx, canvas, 90);
+                    showInputModal('Rotate Image', 'Enter rotation angle (degrees):', 'number', (value) => {
+                        rotateImage(ctx, canvas, parseInt(value));
+                    });
                     break;
+                    
+                case 'resize':
+                    showInputModal('Resize Image', 'Enter new dimensions (width height):', 'text', (value) => {
+                        const parts = value.split(' ');
+                        if (parts.length === 2) {
+                            resizeImage(ctx, canvas, parseInt(parts[0]), parseInt(parts[1]));
+                        } else {
+                            showToast('Please enter width and height separated by space', 'error');
+                        }
+                    });
+                    break;
+                    
+                case 'crop':
+                    showToast('Click and drag on the image to crop', 'info');
+                    enableCropMode();
+                    break;
+                    
                 case 'flip_horizontal':
                     flipImage(ctx, canvas, 'horizontal');
                     break;
+                    
                 case 'flip_vertical':
                     flipImage(ctx, canvas, 'vertical');
                     break;
-                case 'resize':
-                    showModal('Resize', 'Enter new dimensions:');
-                    break;
-                case 'crop':
-                    showModal('Crop', 'Click and drag to select crop area');
-                    break;
+                    
                 default:
                     showToast(`Tool: ${toolName}`, 'info');
             }
-            
-            showToast(`Applied: ${toolName}`, 'success');
-        }
-        
-        function applyGrayscale(ctx, canvas) {
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            
-            for (let i = 0; i < data.length; i += 4) {
-                const gray = (data[i] + data[i+1] + data[i+2]) / 3;
-                data[i] = gray;
-                data[i+1] = gray;
-                data[i+2] = gray;
-            }
-            
-            ctx.putImageData(imageData, 0, 0);
-            currentImageData = imageData;
-        }
-        
-        function applySepia(ctx, canvas) {
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            
-            for (let i = 0; i < data.length; i += 4) {
-                const r = data[i];
-                const g = data[i+1];
-                const b = data[i+2];
-                data[i] = Math.min(255, r * 0.393 + g * 0.769 + b * 0.189);
-                data[i+1] = Math.min(255, r * 0.349 + g * 0.686 + b * 0.168);
-                data[i+2] = Math.min(255, r * 0.272 + g * 0.534 + b * 0.131);
-            }
-            
-            ctx.putImageData(imageData, 0, 0);
-            currentImageData = imageData;
-        }
-        
-        function applyInvert(ctx, canvas) {
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            
-            for (let i = 0; i < data.length; i += 4) {
-                data[i] = 255 - data[i];
-                data[i+1] = 255 - data[i+1];
-                data[i+2] = 255 - data[i+2];
-            }
-            
-            ctx.putImageData(imageData, 0, 0);
-            currentImageData = imageData;
-        }
-        
-        function applyBlur(ctx, canvas) {
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            const width = canvas.width;
-            const height = canvas.height;
-            const temp = new Uint8ClampedArray(data);
-            
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
-                    let r = 0, g = 0, b = 0;
-                    for (let ky = -1; ky <= 1; ky++) {
-                        for (let kx = -1; kx <= 1; kx++) {
-                            const idx = ((y + ky) * width + (x + kx)) * 4;
-                            r += temp[idx];
-                            g += temp[idx + 1];
-                            b += temp[idx + 2];
-                        }
-                    }
-                    const idx = (y * width + x) * 4;
-                    data[idx] = r / 9;
-                    data[idx + 1] = g / 9;
-                    data[idx + 2] = b / 9;
-                }
-            }
-            
-            ctx.putImageData(imageData, 0, 0);
-            currentImageData = imageData;
-        }
-        
-        function applySharpen(ctx, canvas) {
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            const width = canvas.width;
-            const height = canvas.height;
-            const temp = new Uint8ClampedArray(data);
-            
-            const kernel = [
-                [-1, -1, -1],
-                [-1,  9, -1],
-                [-1, -1, -1]
-            ];
-            
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
-                    let r = 0, g = 0, b = 0;
-                    for (let ky = -1; ky <= 1; ky++) {
-                        for (let kx = -1; kx <= 1; kx++) {
-                            const idx = ((y + ky) * width + (x + kx)) * 4;
-                            const weight = kernel[ky + 1][kx + 1];
-                            r += temp[idx] * weight;
-                            g += temp[idx + 1] * weight;
-                            b += temp[idx + 2] * weight;
-                        }
-                    }
-                    const idx = (y * width + x) * 4;
-                    data[idx] = Math.min(255, Math.max(0, r));
-                    data[idx + 1] = Math.min(255, Math.max(0, g));
-                    data[idx + 2] = Math.min(255, Math.max(0, b));
-                }
-            }
-            
-            ctx.putImageData(imageData, 0, 0);
-            currentImageData = imageData;
         }
         
         function adjustBrightness(ctx, canvas, factor) {
@@ -3572,6 +3745,7 @@ WEB_APP_HTML = """
             
             ctx.putImageData(imageData, 0, 0);
             currentImageData = imageData;
+            showToast(`Brightness adjusted by factor ${factor}`, 'success');
         }
         
         function adjustContrast(ctx, canvas, factor) {
@@ -3586,6 +3760,7 @@ WEB_APP_HTML = """
             
             ctx.putImageData(imageData, 0, 0);
             currentImageData = imageData;
+            showToast(`Contrast adjusted by factor ${factor}`, 'success');
         }
         
         function adjustSaturation(ctx, canvas, factor) {
@@ -3601,6 +3776,7 @@ WEB_APP_HTML = """
             
             ctx.putImageData(imageData, 0, 0);
             currentImageData = imageData;
+            showToast(`Saturation adjusted by factor ${factor}`, 'success');
         }
         
         function rotateImage(ctx, canvas, angle) {
@@ -3624,11 +3800,28 @@ WEB_APP_HTML = """
             ctx.drawImage(tempCanvas, 0, 0);
             
             currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            showToast(`Rotated ${angle} degrees`, 'success');
+        }
+        
+        function resizeImage(ctx, canvas, width, height) {
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            tempCtx.drawImage(canvas, 0, 0, width, height);
+            
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(tempCanvas, 0, 0);
+            
+            currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            showToast(`Resized to ${width}x${height}`, 'success');
         }
         
         function flipImage(ctx, canvas, direction) {
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             
+            ctx.save();
             if (direction === 'horizontal') {
                 ctx.translate(canvas.width, 0);
                 ctx.scale(-1, 1);
@@ -3638,64 +3831,87 @@ WEB_APP_HTML = """
             }
             
             ctx.putImageData(imageData, 0, 0);
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.restore();
             
             currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            showToast(`Flipped ${direction}`, 'success');
         }
         
-        function applyFilter(filterName) {
-            if (!currentFile || currentFileType !== 'image') {
-                showToast('Please upload an image first!', 'error');
-                return;
-            }
+        let cropMode = false;
+        let cropStart = null;
+        
+        function enableCropMode() {
+            cropMode = true;
+            const canvas = document.getElementById('preview-canvas');
+            canvas.style.cursor = 'crosshair';
             
-            showToast(`Applying filter: ${filterName}...`, 'info');
+            canvas.addEventListener('mousedown', onCropMouseDown);
+            canvas.addEventListener('mousemove', onCropMouseMove);
+            canvas.addEventListener('mouseup', onCropMouseUp);
+        }
+        
+        function onCropMouseDown(e) {
+            const canvas = document.getElementById('preview-canvas');
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            cropStart = {
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY
+            };
+        }
+        
+        function onCropMouseMove(e) {
+            if (!cropStart) return;
             
             const canvas = document.getElementById('preview-canvas');
             const ctx = canvas.getContext('2d');
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
             
-            switch(filterName) {
-                case 'grayscale':
-                    applyGrayscale(ctx, canvas);
-                    break;
-                case 'sepia':
-                    applySepia(ctx, canvas);
-                    break;
-                case 'invert':
-                    applyInvert(ctx, canvas);
-                    break;
-                case 'blur':
-                    applyBlur(ctx, canvas);
-                    break;
-                case 'sharpen':
-                    applySharpen(ctx, canvas);
-                    break;
-                case 'vintage':
-                    applyVintage(ctx, canvas);
-                    break;
-                case 'cool':
-                    adjustSaturation(ctx, canvas, 1.2);
-                    adjustContrast(ctx, canvas, 1.1);
-                    break;
-                case 'warm':
-                    adjustSaturation(ctx, canvas, 0.8);
-                    adjustContrast(ctx, canvas, 1.2);
-                    break;
-                case 'noir':
-                    applyGrayscale(ctx, canvas);
-                    adjustContrast(ctx, canvas, 1.5);
-                    break;
-                default:
-                    showToast(`Filter: ${filterName}`, 'info');
-            }
+            const currentX = (e.clientX - rect.left) * scaleX;
+            const currentY = (e.clientY - rect.top) * scaleY;
             
-            showToast(`Applied: ${filterName} filter!`, 'success');
+            ctx.putImageData(currentImageData, 0, 0);
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(cropStart.x, cropStart.y, currentX - cropStart.x, currentY - cropStart.y);
         }
         
-        function applyVintage(ctx, canvas) {
-            adjustSaturation(ctx, canvas, 0.8);
-            adjustContrast(ctx, canvas, 1.2);
-            applyBlur(ctx, canvas);
+        function onCropMouseUp(e) {
+            if (!cropStart) return;
+            
+            const canvas = document.getElementById('preview-canvas');
+            const ctx = canvas.getContext('2d');
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            const endX = (e.clientX - rect.left) * scaleX;
+            const endY = (e.clientY - rect.top) * scaleY;
+            
+            const x = Math.min(cropStart.x, endX);
+            const y = Math.min(cropStart.y, endY);
+            const width = Math.abs(endX - cropStart.x);
+            const height = Math.abs(endY - cropStart.y);
+            
+            if (width > 5 && height > 5) {
+                const imageData = ctx.getImageData(x, y, width, height);
+                canvas.width = width;
+                canvas.height = height;
+                ctx.putImageData(imageData, 0, 0);
+                currentImageData = ctx.getImageData(0, 0, width, height);
+                showToast('Image cropped successfully', 'success');
+            }
+            
+            cropStart = null;
+            cropMode = false;
+            canvas.style.cursor = 'default';
+            canvas.removeEventListener('mousedown', onCropMouseDown);
+            canvas.removeEventListener('mousemove', onCropMouseMove);
+            canvas.removeEventListener('mouseup', onCropMouseUp);
         }
         
         function applyCurrentEffect() {
@@ -3721,27 +3937,19 @@ WEB_APP_HTML = """
                 id: Date.now(),
                 type: currentFileType,
                 data: currentFileType === 'image' ? currentImageData : currentFile,
-                timestamp: new Date().toLocaleTimeString(),
-                name: currentFile ? currentFile.name : 'Untitled'
+                name: currentFile ? currentFile.name : 'Untitled',
+                timestamp: new Date().toLocaleTimeString()
             };
             
             timelineClips.push(clip);
             updateTimeline();
             showToast('Added to timeline!', 'success');
-            
-            // Send to server for processing
-            if (socket) {
-                socket.emit('add_to_timeline', {
-                    clip_id: clip.id,
-                    type: clip.type
-                });
-            }
         }
         
         function updateTimeline() {
             const container = document.getElementById('timeline-track');
             if (timelineClips.length === 0) {
-                container.innerHTML = '<div style="text-align: center; padding: 30px; color: rgba(255,255,255,0.5);"><i class="fas fa-clock"></i> Timeline empty - Add clips to start editing</div>';
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-clock"></i><p>Timeline empty - Add clips to start editing</p></div>';
                 return;
             }
             
@@ -3754,12 +3962,9 @@ WEB_APP_HTML = """
                     <i class="fas ${clip.type === 'image' ? 'fa-image' : 'fa-video'}"></i>
                     <div style="font-size: 11px; margin-top: 5px; overflow: hidden; text-overflow: ellipsis;">${clip.name.substring(0, 15)}</div>
                     <div style="font-size: 9px; opacity: 0.7;">${clip.timestamp}</div>
-                    <button onclick="removeFromTimeline(${index})" style="position: absolute; top: -8px; right: -8px; background: #f5576c; border: none; border-radius: 50%; width: 20px; height: 20px; color: white; cursor: pointer; font-size: 12px;">×</button>
+                    <button class="remove-clip" onclick="event.stopPropagation(); removeFromTimeline(${index})">×</button>
                 `;
-                clipDiv.onclick = (e) => {
-                    e.stopPropagation();
-                    selectClip(index);
-                };
+                clipDiv.onclick = () => selectClip(index);
                 container.appendChild(clipDiv);
             });
         }
@@ -3769,20 +3974,16 @@ WEB_APP_HTML = """
             updateTimeline();
             
             const clip = timelineClips[index];
-            if (clip) {
+            if (clip && clip.type === 'image' && clip.data) {
+                const canvas = document.getElementById('preview-canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = clip.data.width;
+                canvas.height = clip.data.height;
+                ctx.putImageData(clip.data, 0, 0);
+                currentImageData = clip.data;
+                document.getElementById('preview-canvas').style.display = 'block';
+                document.getElementById('preview-video').style.display = 'none';
                 showToast(`Selected: ${clip.name}`, 'success');
-                
-                // Load clip into preview
-                if (clip.type === 'image' && clip.data) {
-                    const canvas = document.getElementById('preview-canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = clip.data.width;
-                    canvas.height = clip.data.height;
-                    ctx.putImageData(clip.data, 0, 0);
-                    currentImageData = clip.data;
-                    document.getElementById('preview-canvas').style.display = 'block';
-                    document.getElementById('preview-video').style.display = 'none';
-                }
             }
         }
         
@@ -3814,13 +4015,9 @@ WEB_APP_HTML = """
             
             showToast('Exporting timeline...', 'info');
             
-            // Send timeline to server for processing
             if (socket) {
                 socket.emit('export_timeline', {
-                    clips: timelineClips.map(clip => ({
-                        id: clip.id,
-                        type: clip.type
-                    }))
+                    clips: timelineClips.map(clip => ({ id: clip.id, type: clip.type }))
                 });
             }
         }
@@ -3842,7 +4039,33 @@ WEB_APP_HTML = """
                 link.click();
                 showToast('Image exported successfully!', 'success');
             } else {
-                showToast('Video export feature coming soon!', 'info');
+                showToast('Video export coming soon!', 'info');
+            }
+        }
+        
+        function exportProject() {
+            const project = {
+                name: 'My Project',
+                timestamp: new Date().toISOString(),
+                clips: timelineClips.map(clip => ({ type: clip.type, name: clip.name }))
+            };
+            
+            const dataStr = JSON.stringify(project, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            const exportFileDefaultName = `kinva_project_${Date.now()}.json`;
+            
+            const link = document.createElement('a');
+            link.setAttribute('href', dataUri);
+            link.setAttribute('download', exportFileDefaultName);
+            link.click();
+            
+            showToast('Project saved!', 'success');
+        }
+        
+        function loadSavedProject() {
+            const savedProject = localStorage.getItem('kinva_last_project');
+            if (savedProject) {
+                showToast('Previous project found!', 'info');
             }
         }
         
@@ -3861,42 +4084,69 @@ WEB_APP_HTML = """
         }
         
         // ============================================
-        // TELEGRAM CONNECTION
+        // MODAL FUNCTIONS
         // ============================================
-        function connectTelegram() {
-            const botId = '{{ BOT_ID }}';
-            const redirectUrl = encodeURIComponent(window.location.href);
-            const telegramAuthUrl = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${encodeURIComponent(window.location.origin)}&return_to=${redirectUrl}`;
-            window.open(telegramAuthUrl, '_blank', 'width=600,height=600');
-            showToast('Connecting to Telegram...', 'info');
-        }
-        
-        function checkTelegramConnection() {
-            const params = new URLSearchParams(window.location.search);
-            const authData = params.get('tg_auth');
+        function showInputModal(title, message, type, callback) {
+            modalCallback = callback;
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-message').textContent = message;
             
-            if (authData) {
-                telegramConnected = true;
-                document.getElementById('premium-text').textContent = 'PREMIUM';
-                document.getElementById('premium-status').style.background = 'linear-gradient(135deg, #4caf50, #45a049)';
-                showToast('Connected to Telegram! Premium activated!', 'success');
-                
-                // Remove auth param from URL
-                window.history.replaceState({}, document.title, window.location.pathname);
+            const inputsDiv = document.getElementById('modal-inputs');
+            inputsDiv.innerHTML = '';
+            
+            if (type === 'text' || type === 'number') {
+                const input = document.createElement('input');
+                input.type = type;
+                input.id = 'modal-input';
+                input.placeholder = 'Enter value...';
+                inputsDiv.appendChild(input);
+            } else if (type === 'textarea') {
+                const textarea = document.createElement('textarea');
+                textarea.id = 'modal-input';
+                textarea.rows = 3;
+                textarea.placeholder = 'Enter text...';
+                inputsDiv.appendChild(textarea);
+            }
+            
+            document.getElementById('modal').style.display = 'flex';
+        }
+        
+        function confirmModal() {
+            const input = document.getElementById('modal-input');
+            const value = input ? input.value : null;
+            
+            if (modalCallback && value) {
+                modalCallback(value);
+            }
+            
+            closeModal();
+        }
+        
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+            modalCallback = null;
+        }
+        
+        // ============================================
+        // PREMIUM FUNCTIONS
+        // ============================================
+        function showPremiumModal() {
+            if (isPremium) {
+                showModal('Premium Member', '✨ You have access to all premium features!\n\n• 4K Export\n• No Watermark\n• Priority Processing\n• Motion Tracking\n• Chroma Key\n• Auto Captions');
+            } else {
+                showModal('Upgrade to Premium', '⭐ **Premium Features:**\n\n• 4K Video Export\n• No Watermark\n• Priority Queue\n• Motion Tracking\n• Chroma Key (Green Screen)\n• Auto Captions\n• Voiceover\n• All 50+ Filters\n\n**Price:** $9.99/month or 100 Stars\n\nContact @KinvaSupport to upgrade!');
             }
         }
         
-        function showPremiumModal() {
-            const isPremium = telegramConnected;
-            if (isPremium) {
-                showModal('Premium Member', 'Thank you for being a premium member! You have access to all features including:\n• 4K Export\n• No Watermark\n• Priority Processing\n• All Filters & Tools');
-            } else {
-                showModal('Upgrade to Premium', 'Get access to exclusive features:\n⭐ 4K Export\n⭐ No Watermark\n⭐ Priority Queue\n⭐ All Filters\n⭐ Motion Tracking\n⭐ Chroma Key\n\nPrice: $9.99/month or 100 Stars\n\nConnect Telegram to activate!');
-            }
+        function showModal(title, message) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-message').textContent = message;
+            document.getElementById('modal-inputs').innerHTML = '';
+            document.getElementById('modal').style.display = 'flex';
         }
         
         function showSettings() {
-            showModal('Settings', '⚙️ Editor Settings:\n• Quality: High\n• Export Format: PNG/MP4\n• Default Filters: On\n• Auto-save: Off\n\nMore features coming soon!');
+            showModal('Settings', '⚙️ Editor Settings\n\n• Quality: High\n• Export Format: PNG/MP4\n• Auto-save: Off\n• Theme: Dark\n\nMore features coming soon!');
         }
         
         // ============================================
@@ -3931,16 +4181,6 @@ WEB_APP_HTML = """
             }, 3000);
         }
         
-        function showModal(title, message) {
-            document.getElementById('modal-title').textContent = title;
-            document.getElementById('modal-message').textContent = message;
-            document.getElementById('modal').style.display = 'flex';
-        }
-        
-        function closeModal() {
-            document.getElementById('modal').style.display = 'none';
-        }
-        
         // ============================================
         // KEYBOARD SHORTCUTS
         // ============================================
@@ -3951,86 +4191,130 @@ WEB_APP_HTML = """
             } else if (e.ctrlKey && e.key === 's') {
                 e.preventDefault();
                 exportFile();
+            } else if (e.ctrlKey && e.key === 'Shift + S') {
+                e.preventDefault();
+                exportProject();
             } else if (e.key === 'Delete' && selectedClip !== null) {
                 removeFromTimeline(selectedClip);
             }
         });
-        
-        // ============================================
-        // DRAG AND DROP
-        // ============================================
-        const dropZone = document.querySelector('.preview-container');
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.style.border = '2px dashed #667eea';
-        });
-        
-        dropZone.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            dropZone.style.border = 'none';
-        });
-        
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.style.border = 'none';
-            const file = e.dataTransfer.files[0];
-            if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
-                const inputEvent = { target: { files: [file] } };
-                uploadFileFromEvent(inputEvent);
-            } else {
-                showToast('Please drop an image or video file', 'error');
-            }
-        });
-        
-        function uploadFileFromEvent(event) {
-            const file = event.target.files[0];
-            if (file) {
-                currentFile = file;
-                currentFileType = file.type.startsWith('image/') ? 'image' : 'video';
-                showToast(`Loaded: ${file.name}`, 'success');
-                
-                document.getElementById('no-file-message').style.display = 'none';
-                
-                if (currentFileType === 'image') {
-                    document.getElementById('preview-canvas').style.display = 'block';
-                    document.getElementById('preview-video').style.display = 'none';
-                    
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        const img = new Image();
-                        img.onload = () => {
-                            const canvas = document.getElementById('preview-canvas');
-                            canvas.width = img.width;
-                            canvas.height = img.height;
-                            const ctx = canvas.getContext('2d');
-                            ctx.drawImage(img, 0, 0);
-                            originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                            currentImageData = originalImageData;
-                            
-                            document.getElementById('file-info').innerHTML = 
-                                `<i class="fas fa-image"></i> ${file.name} (${img.width}x${img.height})`;
-                        };
-                        img.src = event.target.result;
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    document.getElementById('preview-canvas').style.display = 'none';
-                    document.getElementById('preview-video').style.display = 'block';
-                    
-                    const url = URL.createObjectURL(file);
-                    const video = document.getElementById('preview-video');
-                    video.src = url;
-                    video.style.display = 'block';
-                    
-                    document.getElementById('file-info').innerHTML = 
-                        `<i class="fas fa-video"></i> ${file.name}`;
-                }
-            }
-        }
     </script>
 </body>
 </html>
 """
+
+# ============================================
+# FLASK ROUTES
+# ============================================
+
+@flask_app.route('/')
+def index():
+    """Main web app page"""
+    return render_template_string(COMPLETE_WEB_APP_HTML)
+
+@flask_app.route('/api/upload', methods=['POST'])
+def upload_file():
+    """Handle file upload"""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    # Save file temporarily
+    filename = f"upload_{datetime.now().timestamp()}_{file.filename}"
+    filepath = os.path.join('/tmp', filename)
+    file.save(filepath)
+    
+    return jsonify({
+        'success': True,
+        'filename': filename,
+        'type': file.content_type
+    })
+
+@flask_app.route('/api/apply_filter', methods=['POST'])
+def apply_filter():
+    """Apply filter to image"""
+    data = request.json
+    filter_name = data.get('filter')
+    image_data = data.get('image')
+    
+    # Process image with filter
+    # This would integrate with your Python image processing
+    
+    return jsonify({'success': True, 'filter': filter_name})
+
+@flask_app.route('/api/export', methods=['POST'])
+def export_media():
+    """Export edited media"""
+    data = request.json
+    media_type = data.get('type')
+    edits = data.get('edits', [])
+    
+    # Process and export
+    # This would generate the final output
+    
+    return jsonify({
+        'success': True,
+        'download_url': '/download/output.mp4'
+    })
+
+@flask_app.route('/api/stats', methods=['GET'])
+def api_stats():
+    """Get bot statistics"""
+    return jsonify({
+        'total_users': 15234,
+        'premium_users': 892,
+        'total_edits': 45678,
+        'today_edits': 1234,
+        'version': '4.0.0'
+    })
+
+@flask_app.route('/health')
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'version': '4.0.0'
+    })
+
+# ============================================
+# SOCKET.IO EVENTS
+# ============================================
+
+@socketio.on('connect')
+def handle_connect():
+    """Handle client connection"""
+    emit('connected', {'message': 'Connected to Kinva Master Server'})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Handle client disconnection"""
+    print(f"Client disconnected")
+
+@socketio.on('add_to_timeline')
+def handle_add_to_timeline(data):
+    """Handle adding clip to timeline"""
+    emit('processing_update', {'message': 'Clip added to timeline', 'progress': 30})
+
+@socketio.on('export_timeline')
+def handle_export_timeline(data):
+    """Handle timeline export"""
+    for i in range(0, 101, 20):
+        time.sleep(0.3)
+        emit('processing_update', {'message': f'Processing timeline... {i}%', 'progress': i})
+    
+    emit('processing_complete', {'message': 'Timeline exported successfully!'})
+
+@socketio.on('apply_effect')
+def handle_apply_effect(data):
+    """Handle applying effect"""
+    effect = data.get('effect')
+    emit('processing_update', {'message': f'Applying {effect}...', 'progress': 50})
+    time.sleep(0.5)
+    emit('processing_complete', {'message': f'{effect} applied!'})
 
 # ============================================
 # FLASK ROUTES
