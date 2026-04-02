@@ -1,5 +1,5 @@
 # ============================================
-# DOCKERFILE - KINVA MASTER PRO
+# DOCKERFILE - KINVA MASTER PRO (FIXED)
 # ============================================
 
 # Use Python 3.11 slim image
@@ -11,7 +11,8 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    TZ=Asia/Kolkata
+    TZ=Asia/Kolkata \
+    DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies for video/audio processing
 RUN apt-get update && apt-get install -y \
@@ -20,12 +21,13 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender-dev \
     libgomp1 \
-    libgl1-mesa-glx \
     libglib2.0-0 \
     libmagic1 \
     wget \
     curl \
     git \
+    libopencv-dev \
+    python3-opencv \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip
