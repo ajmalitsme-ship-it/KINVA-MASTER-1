@@ -1,9 +1,10 @@
 # ============================================
-# BOT.PY - MAIN TELEGRAM BOT FILE
-# KINVA MASTER PRO - COMPLETE EDITING SYSTEM
+# BOT.PY - MAIN TELEGRAM BOT FILE (FULLY FIXED)
+# KINVA MASTER PRO - CORRECTED ALL IMPORTS
 # ============================================
 
 import os
+import sys
 import logging
 import asyncio
 import tempfile
@@ -17,28 +18,31 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Optional, List, Tuple, Any
 
-# Telegram imports
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile, ChatAction
+# Telegram imports - FULLY FIXED
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
+from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
-    Application, CommandHandler, CallbackQueryHandler, 
-    MessageHandler, filters, ContextTypes, ConversationHandler,
-    PreCheckoutQueryHandler, ShippingQueryHandler
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    filters,
+    ContextTypes,
+    ConversationHandler,
+    PreCheckoutQueryHandler,
+    CallbackContext
 )
-from telegram.constants import ParseMode
 
-# Import config
+# Import custom modules
 from config import Config
+from database import db
+from video_editor import video_editor
+from image_editor import image_editor
+from filters import filters
+from premium import premium_manager
+from payments import payment_manager
 
-# Import database
-from database import Database
-
-# Import editing tools
-from video_editor import VideoEditor
-from image_editor import ImageEditor
-from filters import Filters
-from premium import PremiumManager
-from payments import PaymentManager
-
+# Setup logging
 # Setup logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
