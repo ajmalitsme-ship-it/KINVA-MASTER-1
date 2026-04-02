@@ -59,11 +59,11 @@ class KinvaMasterBot:
     
     def __init__(self):
         self.db = db
-        self.video_editor = VideoEditor()
-        self.image_editor = ImageEditor()
-        self.filters = Filters()
+        self.video_editor = VideoEditor
+        self.image_editor = ImageEditor
+        self.filters = Filters
         self.premium = PremiumManager(self.db)
-        self.payment = PaymentManager()
+        self.payment = PaymentManager
         self.user_sessions = {}
         self.processing_tasks = {}
         
