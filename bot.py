@@ -62,8 +62,8 @@ class KinvaMasterBot:
         self.video_editor = video_editor
         self.image_editor = image_editor
         self.filters = filters
-        self.premium = PremiumManager(self.db)
-        self.payment = PaymentManager
+        self.premium = premium_manager(self.db)
+        self.payment = payment_manager
         self.user_sessions = {}
         self.processing_tasks = {}
         
