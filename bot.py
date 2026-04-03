@@ -2532,11 +2532,7 @@ def main():
     conv_broadcast = ConversationHandler(
         entry_points=[CallbackQueryHandler(bot.admin_broadcast, pattern="^admin_broadcast$")],
         # Add this function before your main() function:
-def is_text_not_command(update):
-    return update.message and update.message.text and not update.message.text.startswith('/')
-
-# Then change line 2534 to:
-states={bot.BROADCAST_STATE: [MessageHandler(is_text_not_command, bot.handle_broadcast)]},
+states={bot.BROADCAST_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_broadcast)]},
 # ✅ Correct - uses } to close dict and [] around handler
         fallbacks=[CommandHandler("cancel", cancel)]
     )
