@@ -898,7 +898,7 @@ class PremiumManager:
 
 video_editor = VideoEditor()
 image_editor = ImageEditor()
-filters = Filters()
+self.filters = Filters()
 premium_manager = PremiumManager()
 
 # ============================================
