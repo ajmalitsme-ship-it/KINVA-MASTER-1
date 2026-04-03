@@ -1342,7 +1342,7 @@ class KinvaMasterBot:
             [InlineKeyboardButton("🎁 FREE TRIAL", callback_data="menu_trial"),
              InlineKeyboardButton("📊 STATS", callback_data="menu_stats")],
             [InlineKeyboardButton("❓ HELP", callback_data="menu_help"),
-             📢 SUPPORT", callback_data="menu_support"),
+            inlinekeyboardButton("📢 SUPPORT", callback_data="menu_support"),
              InlineKeyboardButton("👑 ADMIN", callback_data="menu_admin") if user.id in Config.ADMIN_IDS else None],
             [InlineKeyboardButton("📢 JOIN CHANNEL", url=Config.TELEGRAM_CHANNEL),
              InlineKeyboardButton("💬 SUPPORT", url=Config.SUPPORT_CHAT)]
