@@ -1,1 +1,6 @@
-python-telegram-bot # or whatever version you use locally
+requests
+python-telegram-bot>=20.0
+python-dotenv
+Pillow  # for image processing
+ffmpeg-python  # if handling videos
+aiohttp  # async HTTP requests
