@@ -2563,7 +2563,7 @@ Click the button below to activate your free trial!
             [InlineKeyboardButton("📝 FEEDBACK", callback_data="admin_feedback"),
              InlineKeyboardButton("💾 BACKUP DB", callback_data="admin_backup")],
             [InlineKeyboardButton("📈 STATS", callback_data="admin_stats"),
-             ⚙️ SETTINGS", callback_data="admin_settings")],
+             InlineKeyboardButton("⚙️ SETTINGS", callback_data="admin_settings")],
             [InlineKeyboardButton("🔄 RESTART", callback_data="admin_restart"),
              InlineKeyboardButton("🛑 SHUTDOWN", callback_data="admin_shutdown")],
             [InlineKeyboardButton("🔙 BACK", callback_data="back_main")]
