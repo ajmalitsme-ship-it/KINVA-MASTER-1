@@ -2531,7 +2531,7 @@ def main():
     # Conversation handlers
     conv_broadcast = ConversationHandler(
         entry_points=[CallbackQueryHandler(bot.admin_broadcast, pattern="^admin_broadcast$")],
-        states={bot.BROADCAST_STATE: [MessageHandler(filters.text & ~filters.COMMAND, bot.handle_broadcast)]},
+        states={bot.BROADCAST_STATE: MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_broadcast)]},
         fallbacks=[CommandHandler("cancel", cancel)]
     )
     app.add_handler(conv_broadcast)
