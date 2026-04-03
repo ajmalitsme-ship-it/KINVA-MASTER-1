@@ -39,7 +39,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFi
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
-    MessageHandler, filters, ContextTypes, ConversationHandler,
+    MessageHandler, Filters, ContextTypes, ConversationHandler,
     PreCheckoutQueryHandler, ShippingQueryHandler
 )
 
@@ -2531,7 +2531,7 @@ def main():
     # Conversation handlers
     conv_broadcast = ConversationHandler(
         entry_points=[CallbackQueryHandler(bot.admin_broadcast, pattern="^admin_broadcast$")],
-        states={bot.BROADCAST_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_broadcast)]},
+        states={bot.BROADCAST_STATE: [MessageHandler(Filters.TEXT & ~filters.COMMAND, bot.handle_broadcast)]},
 # ✅ Correct - uses } to close dict and [] around handler
         fallbacks=[CommandHandler("cancel", cancel)]
     )
