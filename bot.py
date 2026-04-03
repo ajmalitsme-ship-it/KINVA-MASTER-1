@@ -23,6 +23,8 @@ import secrets
 import string
 import base64
 import requests
+from flask import Flask
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Optional, List, Tuple, Any, Union
@@ -249,7 +251,19 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+# Web server for Render
+flask_app = Flask(__name__)
 
+@flask_app.route('/')
+def home():
+    return "✅ Kinva Master Pro Bot is Running!"
+
+def start_web():
+    port = int(os.environ.get("PORT", 8080))
+    flask_app.run(host='0.0.0.0', port=port)
+
+threading.Thread(target=start_web, daemon=True).start()
+print(f"✅ Web server started on port {os.environ.get('PORT', 8080)}")
 # ============================================
 # LOG CHANNEL MANAGER
 # ============================================
