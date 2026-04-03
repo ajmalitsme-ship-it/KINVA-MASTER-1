@@ -1,1 +1,1 @@
-python-telegram-bot==20.7  # or whatever version you use locally
+python-telegram-bot # or whatever version you use locally
