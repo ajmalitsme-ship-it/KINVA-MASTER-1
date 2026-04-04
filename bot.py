@@ -116,9 +116,9 @@ class Config:
     # ========================================
     # LOG CHANNEL CONFIGURATION
     # ========================================
-    LOG_CHANNEL_ID = None  # Set to your channel ID
-    ERROR_LOG_CHANNEL = None
-    USER_ACTION_LOG = None
+    LOG_CHANNEL_ID = -1003559364122  # Set to your channel ID
+    ERROR_LOG_CHANNEL = -1003559364122
+    USER_ACTION_LOG = -1003559364122
     
     # ========================================
     # SERVER CONFIGURATION
@@ -5538,7 +5538,7 @@ def main():
     
     # Command handlers
     app.add_handler(CommandHandler("start", bot.start))
-    app.add_handler(CommandHandler("menu", bot.help_menu))
+    #app.add_handler(CommandHandler("menu", bot.help_menu))
     #app.add_handler(CommandHandler("help", bot.help_menu))
     app.add_handler(CommandHandler("stats", bot.stats))
     app.add_handler(CommandHandler("profile", bot.stats))
