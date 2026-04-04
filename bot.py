@@ -50,7 +50,7 @@ def install_packages():
     packages = [
         'moviepy', 'Pillow', 'yt-dlp', 'instaloader', 'requests', 'flask',
         'numpy', 'opencv-python-headless', 'scipy', 'imageio', 'imageio-ffmpeg',
-        'pydub', 'audiosegment', 'pyaudio', 'python-magic', 'wand'
+        'pydub', 'audiosegment', 'python-magic', 'wand'
     ]
     for package in packages:
         try:
