@@ -5538,7 +5538,7 @@ def main():
     
     # Command handlers
     app.add_handler(CommandHandler("start", bot.start))
-    app.add_handler(CommandHandler("menu", bot.help_menu))
+    #app.add_handler(CommandHandler("menu", bot.help_menu))
     app.add_handler(CommandHandler("help", bot.help_menu))
     app.add_handler(CommandHandler("stats", bot.stats))
     app.add_handler(CommandHandler("profile", bot.stats))
