@@ -5,3 +5,4 @@ python-dotenv
 Pillow  # for image processing
 ffmpeg-python  # if handling videos
 aiohttp  # async HTTP requests
+numpy
