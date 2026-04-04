@@ -5750,5 +5750,22 @@ def main():
     else:
         app.run_polling(allowed_updates=["message", "callback_query"])
 
+# At the bottom of your code, before main()
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    
+    # Start web server in background
+    from flask import Flask
+    app = Flask(__name__)
+    
+    @app.route('/')
+    def home():
+        return "Bot is running!"
+    
+    def run_web():
+        app.run(host='0.0.0.0', port=port)
+    
+    threading.Thread(target=run_web, daemon=True).start()
+    
+    # Start your bot
     main()
