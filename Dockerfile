@@ -30,6 +30,15 @@ RUN apt-get update && apt-get install -y \
     python3-opencv \
     && rm -rf /var/lib/apt/lists/*
 
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gcc \
+    g++ \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
 # Upgrade pip
 RUN pip install --no-cache-dir --upgrade pip
 
