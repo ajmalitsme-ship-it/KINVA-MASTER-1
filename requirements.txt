@@ -1,4 +1,6 @@
 flask
+flask-cors
+# Add any other dependencies your bot.py needs
 requests
 python-telegram-bot>=20.0
 python-dotenv
