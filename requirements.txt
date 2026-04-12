@@ -1,16 +1,35 @@
+# Telegram Bot Framework
 python-telegram-bot
-python-dotenv
+python-telegram-bot[job-queue]
+
+# Image Processing
 Pillow
 numpy
 opencv-python
 scipy
 scikit-image
+
+# Video Processing
 moviepy
+imageio
+imageio-ffmpeg
+
+# Audio Processing
 pydub
 librosa
 soundfile
-ffmpeg-python
+
+# Code Formatting
+autopep8
+black
+jsbeautifier
+sqlparse
+
+# Web Server
 Flask
+gunicorn
+
+# Utilities
+requests
 aiohttp
 aiofiles
-requests
