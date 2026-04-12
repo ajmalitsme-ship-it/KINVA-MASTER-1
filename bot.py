@@ -1519,13 +1519,13 @@ class KinvaMasterBot:
         
         # Start background tasks
 asyncio.create_task(self._process_scheduled_messages())
-asyncio.create_task(self._cleanup_sessions_loop())  # ← Fixed line
-        
-        try:
-            while True:
-                await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            await self.stop()
+asyncio.create_task(self._cleanup_sessions_loop())
+
+try:
+    while True:
+        await asyncio.sleep(1)
+except KeyboardInterrupt:
+    await self.stop()
     
     def _start_web_server(self):
         self.flask_app = Flask(__name__)
