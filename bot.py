@@ -1518,8 +1518,8 @@ class KinvaMasterBot:
             logger.info("Bot started in polling mode")
         
         # Start background tasks
-        asyncio.create_task(self._process_scheduled_messages())
-        asyncio.create self._cleanup_sessions_loop())
+asyncio.create_task(self._process_scheduled_messages())
+asyncio.create_task(self._cleanup_sessions_loop())  # ← Fixed line
         
         try:
             while True:
