@@ -1,10 +1,16 @@
-flask
-flask-cors
-# Add any other dependencies your bot.py needs
-requests
-python-telegram-bot>=20.0
+python-telegram-bot
 python-dotenv
-Pillow  # for image processing
-ffmpeg-python  # if handling videos
-aiohttp  # async HTTP requests
+Pillow
 numpy
+opencv-python
+scipy
+scikit-image
+moviepy
+pydub
+librosa
+soundfile
+ffmpeg-python
+Flask
+aiohttp
+aiofiles
+requests
