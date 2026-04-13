@@ -10,7 +10,7 @@ scipy
 scikit-image
 
 # Video Processing
-moviepy
+moviepy==1.0.3
 imageio
 imageio-ffmpeg
 
