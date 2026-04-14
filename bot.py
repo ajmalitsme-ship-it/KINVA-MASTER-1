@@ -89,7 +89,7 @@ OWNER_ID = int(os.environ.get("OWNER_ID", 8525952693))
 if OWNER_ID not in ADMIN_IDS:
     ADMIN_IDS.append(OWNER_ID)
 
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://KINVA-MASTER-1.onrender.com")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://kinva-master-1-hf70.onrender.com")
 USE_WEBHOOK = os.environ.get("USE_WEBHOOK", "False").lower() == "true"
 PORT = int(os.environ.get("PORT", 8080))
 
