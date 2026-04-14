@@ -3062,6 +3062,7 @@ class KeyboardBuilder:
             keyboard.append(row)
         return InlineKeyboardMarkup(keyboard)
 # ==================== MAIN BOT CLASS ====================
+# ==================== MAIN BOT CLASS ====================
 
 class KinvaMasterBot:
     """Main bot class handling all commands and callbacks"""
@@ -3278,6 +3279,9 @@ class KinvaMasterBot:
             except Exception as e:
                 logger.error(f"Scheduled messages error: {e}")
     
+
+        
+        
     # ==================== USER COMMANDS ====================
     
     async def cmd_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
