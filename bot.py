@@ -2460,8 +2460,8 @@ class VideoProcessor:
             return False, str(e)
     
     @staticmethod
-    def add_fade(video_path: str, fade_in: float = 1, fade_out: float = 1, 
-                 output_path: str) -> Tuple[bool, str]:
+    def add_fade(video_path: str, output_path: str, fade_in: float = 1, 
+             fade_out: float = 1) -> Tuple[bool, str]:
         """Add fade in and fade out effects"""
         if not MOVIEPY_AVAILABLE:
             return False, "MoviePy not available"
