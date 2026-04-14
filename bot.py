@@ -150,14 +150,14 @@ except ImportError:
 # ==================== CONFIGURATION ====================
 
 # Bot Configuration
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8623600399:AAG-baXz9v8g8VOnkToRvrNMyA_Pql2Dvuw")
 if not BOT_TOKEN:
     print("❌ TELEGRAM_BOT_TOKEN environment variable not set!")
     print("Please set your bot token: export TELEGRAM_BOT_TOKEN='your_token_here'")
     exit(1)
 
-ADMIN_IDS = [int(id.strip()) for id in os.environ.get("ADMIN_IDS", "").split(",") if id.strip()]
-OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
+ADMIN_IDS = [int(id.strip()) for id in os.environ.get("ADMIN_IDS", "8525952693").split(",") if id.strip()]
+OWNER_ID = int(os.environ.get("OWNER_ID", 8525952693))
 if OWNER_ID and OWNER_ID not in ADMIN_IDS:
     ADMIN_IDS.append(OWNER_ID)
 
