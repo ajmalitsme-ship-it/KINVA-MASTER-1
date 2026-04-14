@@ -261,7 +261,7 @@ class UserState(Enum):
     AWAITING_QUALITY = "awaiting_quality"
     AWAITING_REFERRAL = "awaiting_referral"
     AWAITING_PREMIUM = "awaiting_premium"
-    AWAITING_ANNOUNCEMENT = "awaiting_announcement"  # 🔥 ADD THIS LINE
+    AWAITING_ANNOUNCEMENT = "awaiting_announcement"
     VERIFIED = "verified"
 
 class UserRole(Enum):
@@ -272,7 +272,15 @@ class UserRole(Enum):
     ADMIN = "admin"
     OWNER = "owner"
 
-class EditingMode(Enum):
+class MediaType(Enum):  # MOVED HERE - before UserSession
+    """Media types supported"""
+    IMAGE = "image"
+    VIDEO = "video"
+    AUDIO = "audio"
+    DOCUMENT = "document"
+    GIF = "gif"
+
+class EditingMode(Enum):  # Add this if missing
     """Editing mode for media processing"""
     IMAGE = "image"
     VIDEO = "video"
@@ -288,6 +296,8 @@ class UserSession:
     state: UserState = UserState.AWAITING_CAPTCHA
     media_type: MediaType = MediaType.IMAGE
     temp_files: List[str] = field(default_factory=list)
+    temp_file_path: Optional[str] = None
+    editing_mode: Optional[EditingMode] = None
     pending_effect: Optional[str] = None
     pending_params: Dict[str, Any] = field(default_factory=dict)
     captcha_code: Optional[str] = None
@@ -327,7 +337,6 @@ class UserData:
     last_active: datetime = field(default_factory=datetime.now)
     language: str = "en"
     theme: str = "dark"
-
 # ==================== DATABASE MANAGER ====================
 
 class DatabaseManager:
