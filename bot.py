@@ -261,6 +261,7 @@ class UserState(Enum):
     AWAITING_QUALITY = "awaiting_quality"
     AWAITING_REFERRAL = "awaiting_referral"
     AWAITING_PREMIUM = "awaiting_premium"
+    AWAITING_ANNOUNCEMENT = "awaiting_announcement"  # 🔥 ADD THIS LINE
     VERIFIED = "verified"
 
 class UserRole(Enum):
@@ -271,12 +272,11 @@ class UserRole(Enum):
     ADMIN = "admin"
     OWNER = "owner"
 
-class MediaType(Enum):
-    """Media types supported"""
+class EditingMode(Enum):
+    """Editing mode for media processing"""
     IMAGE = "image"
     VIDEO = "video"
     AUDIO = "audio"
-    DOCUMENT = "document"
     GIF = "gif"
 
 # ==================== DATA CLASSES ====================
