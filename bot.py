@@ -359,176 +359,176 @@ class DatabaseManager:
             raise e
         finally:
             conn.close()
-    
     def _init_database(self):
-        """Initialize all database tables"""
-        with self.get_connection() as conn:
-            # Users table
-            conn.execute('''CREATE TABLE IF NOT EXISTS users (
-                user_id INTEGER PRIMARY KEY,
-                username TEXT,
-                first_name TEXT,
-                last_name TEXT,
-                role TEXT DEFAULT 'user',
-                is_premium BOOLEAN DEFAULT 0,
-                premium_expires TIMESTAMP,
-                is_banned BOOLEAN DEFAULT 0,
-                ban_reason TEXT,
-                banned_at TIMESTAMP,
-                is_muted BOOLEAN DEFAULT 0,
-                muted_until TIMESTAMP,
-                warn_count INTEGER DEFAULT 0,
-                total_edits INTEGER DEFAULT 0,
-                total_images INTEGER DEFAULT 0,
-                total_videos INTEGER DEFAULT 0,
-                total_audios INTEGER DEFAULT 0,
-                credits INTEGER DEFAULT ?,
-                referral_count INTEGER DEFAULT 0,
-                referred_by INTEGER,
-                join_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                language TEXT DEFAULT 'en',
-                theme TEXT DEFAULT 'dark'
-            )''', (DEFAULT_CREDITS,))
-            
-            # Verification table
-            conn.execute('''CREATE TABLE IF NOT EXISTS verification (
-                user_id INTEGER PRIMARY KEY,
-                is_verified BOOLEAN DEFAULT 0,
-                verified_at TIMESTAMP,
-                method TEXT
-            )''')
-            
-            # Edit history table
-            conn.execute('''CREATE TABLE IF NOT EXISTS edit_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                media_type TEXT,
-                operation TEXT,
-                filter_used TEXT,
-                processing_time REAL,
-                file_size INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )''')
-            
-            # Feedback table
-            conn.execute('''CREATE TABLE IF NOT EXISTS feedback (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                feedback TEXT,
-                rating INTEGER,
-                status TEXT DEFAULT 'pending',
-                admin_response TEXT,
-                responded_at TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )''')
-            
-            # Admin logs table
-            conn.execute('''CREATE TABLE IF NOT EXISTS admin_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                admin_id INTEGER,
-                action TEXT,
-                target_user INTEGER,
-                details TEXT,
-                ip_address TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )''')
-            
-            # Broadcasts table
-            conn.execute('''CREATE TABLE IF NOT EXISTS broadcasts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                admin_id INTEGER,
-                message TEXT,
-                media_type TEXT,
-                media_id TEXT,
-                recipients INTEGER,
-                successful INTEGER,
-                failed INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )''')
-            
-            # Warnings table
-            conn.execute('''CREATE TABLE IF NOT EXISTS warnings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                warned_by INTEGER,
-                reason TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )''')
-            
-            # Referrals table
-            conn.execute('''CREATE TABLE IF NOT EXISTS referrals (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                referrer_id INTEGER,
-                referred_id INTEGER,
-                reward_claimed BOOLEAN DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )''')
-            
-            # Daily rewards table
-            conn.execute('''CREATE TABLE IF NOT EXISTS daily_rewards (
-                user_id INTEGER PRIMARY KEY,
-                last_claim DATE,
-                streak INTEGER DEFAULT 0
-            )''')
-            
-            # Auto responses table
-            conn.execute('''CREATE TABLE IF NOT EXISTS auto_responses (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                keyword TEXT UNIQUE,
-                response TEXT,
-                media_type TEXT DEFAULT 'text',
-                media_id TEXT,
-                created_by INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )''')
-            
-            # Custom commands table
-            conn.execute('''CREATE TABLE IF NOT EXISTS custom_commands (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                command TEXT UNIQUE,
-                response_type TEXT,
-                response_content TEXT,
-                language TEXT,
-                created_by INTEGER,
-                usage_count INTEGER DEFAULT 0,
-                is_active BOOLEAN DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )''')
-            
-            # Scheduled messages table
-            conn.execute('''CREATE TABLE IF NOT EXISTS scheduled_messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                message TEXT,
-                media_type TEXT,
-                media_id TEXT,
-                schedule_time TIMESTAMP,
-                status TEXT DEFAULT 'pending',
-                created_by INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )''')
-            
-            # Payments table
-            conn.execute('''CREATE TABLE IF NOT EXISTS payments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                amount INTEGER,
-                payment_id TEXT UNIQUE,
-                status TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )''')
-            
-            # Create indexes for better performance
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_users_premium ON users(is_premium)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_users_banned ON users(is_banned)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_edit_history_user ON edit_history(user_id)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_admin_logs_admin ON admin_logs(admin_id)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_broadcasts_created ON broadcasts(created_at)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_custom_commands_active ON custom_commands(is_active)')
-            
-            logger.info("Database initialized successfully")
+    """Initialize all database tables"""
+    with self.get_connection() as conn:
+        # Users table - using f-string for DEFAULT value
+        conn.execute(f'''CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            username TEXT,
+            first_name TEXT,
+            last_name TEXT,
+            role TEXT DEFAULT 'user',
+            is_premium BOOLEAN DEFAULT 0,
+            premium_expires TIMESTAMP,
+            is_banned BOOLEAN DEFAULT 0,
+            ban_reason TEXT,
+            banned_at TIMESTAMP,
+            is_muted BOOLEAN DEFAULT 0,
+            muted_until TIMESTAMP,
+            warn_count INTEGER DEFAULT 0,
+            total_edits INTEGER DEFAULT 0,
+            total_images INTEGER DEFAULT 0,
+            total_videos INTEGER DEFAULT 0,
+            total_audios INTEGER DEFAULT 0,
+            credits INTEGER DEFAULT {DEFAULT_CREDITS},
+            referral_count INTEGER DEFAULT 0,
+            referred_by INTEGER,
+            join_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            language TEXT DEFAULT 'en',
+            theme TEXT DEFAULT 'dark'
+        )''')
+        
+        # Verification table
+        conn.execute('''CREATE TABLE IF NOT EXISTS verification (
+            user_id INTEGER PRIMARY KEY,
+            is_verified BOOLEAN DEFAULT 0,
+            verified_at TIMESTAMP,
+            method TEXT
+        )''')
+        
+        # Edit history table
+        conn.execute('''CREATE TABLE IF NOT EXISTS edit_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            media_type TEXT,
+            operation TEXT,
+            filter_used TEXT,
+            processing_time REAL,
+            file_size INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        
+        # Feedback table
+        conn.execute('''CREATE TABLE IF NOT EXISTS feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            feedback TEXT,
+            rating INTEGER,
+            status TEXT DEFAULT 'pending',
+            admin_response TEXT,
+            responded_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        
+        # Admin logs table
+        conn.execute('''CREATE TABLE IF NOT EXISTS admin_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER,
+            action TEXT,
+            target_user INTEGER,
+            details TEXT,
+            ip_address TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        
+        # Broadcasts table
+        conn.execute('''CREATE TABLE IF NOT EXISTS broadcasts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER,
+            message TEXT,
+            media_type TEXT,
+            media_id TEXT,
+            recipients INTEGER,
+            successful INTEGER,
+            failed INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        
+        # Warnings table
+        conn.execute('''CREATE TABLE IF NOT EXISTS warnings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            warned_by INTEGER,
+            reason TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        
+        # Referrals table
+        conn.execute('''CREATE TABLE IF NOT EXISTS referrals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            referrer_id INTEGER,
+            referred_id INTEGER,
+            reward_claimed BOOLEAN DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        
+        # Daily rewards table
+        conn.execute('''CREATE TABLE IF NOT EXISTS daily_rewards (
+            user_id INTEGER PRIMARY KEY,
+            last_claim DATE,
+            streak INTEGER DEFAULT 0
+        )''')
+        
+        # Auto responses table
+        conn.execute('''CREATE TABLE IF NOT EXISTS auto_responses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            keyword TEXT UNIQUE,
+            response TEXT,
+            media_type TEXT DEFAULT 'text',
+            media_id TEXT,
+            created_by INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        
+        # Custom commands table
+        conn.execute('''CREATE TABLE IF NOT EXISTS custom_commands (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            command TEXT UNIQUE,
+            response_type TEXT,
+            response_content TEXT,
+            language TEXT,
+            created_by INTEGER,
+            usage_count INTEGER DEFAULT 0,
+            is_active BOOLEAN DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        
+        # Scheduled messages table
+        conn.execute('''CREATE TABLE IF NOT EXISTS scheduled_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message TEXT,
+            media_type TEXT,
+            media_id TEXT,
+            schedule_time TIMESTAMP,
+            status TEXT DEFAULT 'pending',
+            created_by INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        
+        # Payments table
+        conn.execute('''CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            amount INTEGER,
+            payment_id TEXT UNIQUE,
+            status TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        
+        # Create indexes for better performance
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_users_premium ON users(is_premium)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_users_banned ON users(is_banned)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_edit_history_user ON edit_history(user_id)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_admin_logs_admin ON admin_logs(admin_id)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_broadcasts_created ON broadcasts(created_at)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_custom_commands_active ON custom_commands(is_active)')
+        
+        logger.info("Database initialized successfully")
+                                
     
     # ==================== USER MANAGEMENT ====================
     
