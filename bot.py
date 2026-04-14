@@ -667,10 +667,21 @@ class DatabaseManager:
     
     # Admin Logs
     def log_admin_action(self, admin_id: int, action: str, target_user: int = None, details: str = None, ip: str = None):
-        with self.get_connection() as conn:
-            conn.execute('''INSERT INTO admin_logs (admin_id, action, target_user, details, ip_address)
-                VALUES (?, ?, ?, ?, ?)''', (admin_id, action, target_user, details, ip))
-    
+    """Log admin action with retry logic for database locks"""
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            with self.get_connection() as conn:
+                conn.execute('''INSERT INTO admin_logs (admin_id, action, target_user, details, ip_address, created_at)
+                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''', 
+                    (admin_id, action, target_user, details, ip))
+            return True
+        except sqlite3.OperationalError as e:
+            if 'database is locked' in str(e) and attempt < max_retries - 1:
+                time.sleep(0.5 * (attempt + 1))
+                continue
+            logger.error(f"Failed to log admin action: {e}")
+            return False
     def get_admin_logs(self, limit: int = 100) -> List[Dict]:
         with self.get_connection() as conn:
             logs = conn.execute('''SELECT al.*, u.username as admin_name
@@ -1749,63 +1760,71 @@ class KinvaMasterBot:
             await self.stop()
     
     def _start_web_server(self):
-        """Start Flask web server for webhook"""
-        if not HAS_FLASK:
-            logger.warning("Flask not installed. Webhook mode disabled.")
-            return
-            
-        self.flask_app = Flask(__name__)
-        
-        @self.flask_app.route('/webhook', methods=['POST'])
-        async def webhook():
-            update = Update.de_json(request.get_json(force=True), self.application.bot)
-            await self.application.process_update(update)
-            return 'OK', 200
-        
-        @self.flask_app.route('/health', methods=['GET'])
-        def health():
-            return jsonify({"status": "ok", "time": datetime.now().isoformat()}), 200
-        
-        @self.flask_app.route('/stats', methods=['GET'])
-        def stats():
-            stats = self.db.get_bot_stats()
-            return jsonify(stats), 200
-        
-        @self.flask_app.route('/', methods=['GET'])
-        def home():
-            return render_template_string('''
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>KINVA MASTER PRO</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-                        h1 { font-size: 48px; }
-                        .status { background: rgba(255,255,255,0.2); padding: 20px; border-radius: 10px; margin: 20px; }
-                        .online { color: #4ade80; }
-                    </style>
-                </head>
-                <body>
-                    <h1>🎨 KINVA MASTER PRO</h1>
-                    <div class="status">
-                        <h2>Bot Status: <span class="online">● ONLINE</span></h2>
-                        <p>Advanced Image & Video Editing Bot</p>
-                        <p>Version: 6.1.0</p>
-                    </div>
-                    <p>🤖 Bot is running and ready to process your media!</p>
-                </body>
-                </html>
-            ''')
-        
-        def run_flask():
-            self.flask_app.run(host='0.0.0.0', port=PORT, debug=False, use_reloader=False)
-        
-        thread = threading.Thread(target=run_flask, daemon=True)
-        thread.start()
+    """Start Flask web server for webhook"""
+    try:
+        from flask import Flask, request, jsonify, render_template_string
+    except ImportError:
+        logger.warning("Flask not installed. Webhook mode disabled.")
+        return
     
-    async def stop(self):
-        """Stop the bot gracefully"""
-        logger.info("Stopping bot...")
+    self.flask_app = Flask(__name__)
+    
+    @self.flask_app.route('/webhook', methods=['POST'])
+    def webhook():
+        """Handle webhook - NOT async"""
+        try:
+            update_data = request.get_json(force=True)
+            update = Update.de_json(update_data, self.application.bot)
+            # Schedule async function in the event loop
+            asyncio.run_coroutine_threadsafe(
+                self.application.process_update(update),
+                self.application.loop
+            )
+            return 'OK', 200
+        except Exception as e:
+            logger.error(f"Webhook error: {e}")
+            return 'Error', 500
+    
+    @self.flask_app.route('/health', methods=['GET'])
+    def health():
+        return jsonify({"status": "ok", "time": datetime.now().isoformat()}), 200
+    
+    @self.flask_app.route('/stats', methods=['GET'])
+    def stats():
+        stats_data = self.db.get_bot_stats()
+        return jsonify(stats_data), 200
+    
+    @self.flask_app.route('/', methods=['GET'])
+    def home():
+        html = '''<!DOCTYPE html>
+        <html>
+        <head>
+            <title>KINVA MASTER PRO</title>
+            <style>
+                body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+                h1 { font-size: 48px; }
+                .status { background: rgba(255,255,255,0.2); padding: 20px; border-radius: 10px; margin: 20px; }
+                .online { color: #4ade80; }
+            </style>
+        </head>
+        <body>
+            <h1>🎨 KINVA MASTER PRO</h1>
+            <div class="status">
+                <h2>Bot Status: <span class="online">● ONLINE</span></h2>
+                <p>Advanced Image & Video Editing Bot</p>
+                <p>Version: 6.1.0</p>
+            </div>
+            <p>🤖 Bot is running and ready to process your media!</p>
+        </body>
+        </html>'''
+        return html, 200
+    
+    def run_flask():
+        self.flask_app.run(host='0.0.0.0', port=PORT, debug=False, use_reloader=False)
+    
+    thread = threading.Thread(target=run_flask, daemon=True)
+    thread.start()
+    logger.info(f"Flask web server started on port {PORT}")
         
         # Cancel background tasks
         for task in self._background_tasks:
