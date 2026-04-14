@@ -78,8 +78,15 @@ from aiohttp import ClientSession
 import aiofiles
 
 # Web Server
-from flask import Flask, request, jsonify
-import threading
+from flask import Flask, request, jsonify, render_template_string
+
+# Check if Flask is available
+try:
+    from flask import Flask, request, jsonify, render_template_string
+    HAS_FLASK = True
+except ImportError:
+    HAS_FLASK = False
+    logger.warning("Flask not installed. Webhook mode disabled.")
 
 # ==================== Configuration ====================
 
