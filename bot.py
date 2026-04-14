@@ -359,7 +359,7 @@ class DatabaseManager:
             raise e
         finally:
             conn.close()
-    def _init_database(self):
+def _init_database(self):
     """Initialize all database tables"""
     with self.get_connection() as conn:
         # Users table - using f-string for DEFAULT value
