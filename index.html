@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Kira FX - Professional Video Editor</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            overflow-x: hidden;
+        }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--tg-theme-hint-color, #ccc);
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        /* Main Editor Container */
+        .editor-container {
+            margin-top: 60px;
+            padding: 16px;
+        }
+
+        /* Preview Canvas */
+        .preview-container {
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            aspect-ratio: 16/9;
+            margin-bottom: 20px;
+        }
+
+        #preview-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Timeline */
+        .timeline-container {
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: var(--tg-theme-hint-color, #666);
+        }
+
+        .timeline {
+            position: relative;
+            height: 80px;
+            background: var(--tg-theme-bg-color, #fff);
+            border-radius: 8px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            white-space: nowrap;
+        }
+
+        .timeline-track {
+            position: relative;
+            height: 100%;
+            display: inline-flex;
+        }
+
+        .timeline-clip {
+            display: inline-block;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 6px;
+            margin: 4px;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .timeline-clip:hover {
+            transform: scaleY(1.05);
+        }
+
+        .timeline-clip.selected {
+            border: 2px solid #4CAF50;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+        }
+
+        /* Tools Panel */
+        .tools-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .tool-card {
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tool-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .tool-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .tool-name {
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* Effects Grid */
+        .effects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .effect-item {
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            border-radius: 8px;
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .effect-item:hover {
+            background: var(--tg-theme-button-color, #2481cc);
+            color: var(--tg-theme-button-text-color, #fff);
+        }
+
+        .effect-preview {
+            width: 100%;
+            height: 60px;
+            background: #ddd;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            background-size: cover;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--tg-theme-bg-color, #fff);
+            border-radius: 16px;
+            max-width: 90%;
+            max-height: 80%;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        /* Export Button */
+        .export-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .tools-panel {
+                grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+            }
+            
+            .tool-icon {
+                font-size: 24px;
+            }
+            
+            .tool-name {
+                font-size: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">🎬 Kira FX Editor</div>
+        <div class="header-actions">
+            <button class="icon-btn" onclick="showProjects()">📁</button>
+            <button class="icon-btn" onclick="showSettings()">⚙️</button>
+            <button class="icon-btn" onclick="saveProject()">💾</button>
+        </div>
+    </div>
+
+    <div class="editor-container">
+        <!-- Preview Area -->
+        <div class="preview-container">
+            <video id="preview-canvas" controls></video>
+        </div>
+
+        <!-- Timeline -->
+        <div class="timeline-container">
+            <div class="timeline-header">
+                <span>Timeline</span>
+                <span>🖱️ Drag to trim</span>
+            </div>
+            <div class="timeline" id="timeline">
+                <div class="timeline-track" id="timeline-track"></div>
+            </div>
+        </div>
+
+        <!-- Tools Panel -->
+        <div class="tools-panel" id="tools-panel">
+            <div class="tool-card" onclick="showEffects()">
+                <div class="tool-icon">🎨</div>
+                <div class="tool-name">Effects</div>
+            </div>
+            <div class="tool-card" onclick="showFilters()">
+                <div class="tool-icon">🌈</div>
+                <div class="tool-name">Filters</div>
+            </div>
+            <div class="tool-card" onclick="showText()">
+                <div class="tool-icon">📝</div>
+                <div class="tool-name">Text</div>
+            </div>
+            <div class="tool-card" onclick="showMusic()">
+                <div class="tool-icon">🎵</div>
+                <div class="tool-name">Music</div>
+            </div>
+            <div class="tool-card" onclick="showTransitions()">
+                <div class="tool-icon">🔄</div>
+                <div class="tool-name">Transitions</div>
+            </div>
+            <div class="tool-card" onclick="showStickers()">
+                <div class="tool-icon">🎭</div>
+                <div class="tool-name">Stickers</div>
+            </div>
+            <div class="tool-card" onclick="showSpeed()">
+                <div class="tool-icon">⚡</div>
+                <div class="tool-name">Speed</div>
+            </div>
+            <div class="tool-card" onclick="showCrop()">
+                <div class="tool-icon">✂️</div>
+                <div class="tool-name">Crop</div>
+            </div>
+        </div>
+
+        <button class="export-btn" onclick="exportVideo()">🚀 Export Video</button>
+    </div>
+
+    <!-- Effects Modal -->
+    <div id="effects-modal" class="modal">
+        <div class="modal-content">
+            <h3>Video Effects</h3>
+            <div class="effects-grid" id="effects-grid"></div>
+            <button onclick="closeModal('effects-modal')">Close</button>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p style="color: white; margin-top: 20px;">Processing video...</p>
+    </div>
+
+    <script>
+        // Initialize Telegram Web App
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+
+        // Global variables
+        let currentProject = {
+            name: 'Untitled',
+            clips: [],
+            effects: [],
+            music: null,
+            textOverlays: [],
+            duration: 0,
+            resolution: '1080p'
+        };
+
+        let selectedClip = null;
+        let videoFile = null;
+
+        // Effects library
+        const effectsLibrary = {
+            'cinematic': { name: 'Cinematic', premium: true, type: 'lut' },
+            'vintage': { name: 'Vintage', premium: true, type: 'filter' },
+            'glitch': { name: 'Glitch', premium: true, type: 'effect' },
+            'blur': { name: 'Blur', premium: false, type: 'filter' },
+            'sharpen': { name: 'Sharpen', premium: false, type: 'filter' },
+            'bw': { name: 'Black & White', premium: false, type: 'filter' },
+            'sepia': { name: 'Sepia', premium: false, type: 'filter' },
+            'vignette': { name: 'Vignette', premium: true, type: 'filter' }
+        };
+
+        // Filters library
+        const filtersLibrary = {
+            'brightness': { name: 'Brightness', premium: false },
+            'contrast': { name: 'Contrast', premium: false },
+            'saturation': { name: 'Saturation', premium: false },
+            'warm': { name: 'Warm', premium: false },
+            'cool': { name: 'Cool', premium: false },
+            'dramatic': { name: 'Dramatic', premium: true }
+        };
+
+        // Initialize editor
+        function init() {
+            setupFileUpload();
+            loadEffects();
+            updateTimeline();
+            
+            // Set theme
+            document.body.style.backgroundColor = tg.themeParams.bg_color;
+            document.body.style.color = tg.themeParams.text_color;
+        }
+
+        // Setup file upload
+        function setupFileUpload() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'video/*,image/*';
+            input.onchange = handleFileUpload;
+            
+            // Add upload button to timeline
+            const uploadBtn = document.createElement('button');
+            uploadBtn.innerHTML = '+ Add Media';
+            uploadBtn.className = 'tool-card';
+            uploadBtn.onclick = () => input.click();
+            document.getElementById('tools-panel').appendChild(uploadBtn);
+        }
+
+        // Handle file upload
+        async function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            showLoading();
+            
+            const url = URL.createObjectURL(file);
+            const clip = {
+                id: Date.now(),
+                type: file.type.startsWith('video') ? 'video' : 'image',
+                file: file,
+                url: url,
+                duration: file.type.startsWith('video') ? await getVideoDuration(url) : 3,
+                start: 0,
+                effects: []
+            };
+            
+            currentProject.clips.push(clip);
+            updateTimeline();
+            
+            if (file.type.startsWith('video')) {
+                document.getElementById('preview-canvas').src = url;
+            }
+            
+            hideLoading();
+            tg.showPopup({
+                title: 'Success',
+                message: 'Media added to timeline!',
+                buttons: [{type: 'ok'}]
+            });
+        }
+
+        // Get video duration
+        function getVideoDuration(url) {
+            return new Promise((resolve) => {
+                const video = document.createElement('video');
+                video.src = url;
+                video.onloadedmetadata = () => {
+                    resolve(video.duration);
+                };
+            });
+        }
+
+        // Update timeline display
+        function updateTimeline() {
+            const track = document.getElementById('timeline-track');
+            track.innerHTML = '';
+            
+            currentProject.clips.forEach((clip, index) => {
+                const clipElement = document.createElement('div');
+                clipElement.className = 'timeline-clip';
+                clipElement.style.width = `${Math.max(100, clip.duration * 50)}px`;
+                clipElement.innerHTML = `
+                    <div style="padding: 8px; text-align: center;">
+                        ${clip.type === 'video' ? '🎬' : '🖼️'}
+                        <div style="font-size: 10px;">${clip.duration.toFixed(1)}s</div>
+                    </div>
+                `;
+                clipElement.onclick = () => selectClip(index);
+                if (selectedClip === index) {
+                    clipElement.classList.add('selected');
+                }
+                track.appendChild(clipElement);
+            });
+        }
+
+        // Select clip
+        function selectClip(index) {
+            selectedClip = index;
+            updateTimeline();
+            tg.showPopup({
+                title: 'Clip Selected',
+                message: 'You can now apply effects or trim this clip',
+                buttons: [{type: 'ok'}]
+            });
+        }
+
+        // Show effects modal
+        function showEffects() {
+            const modal = document.getElementById('effects-modal');
+            modal.style.display = 'flex';
+        }
+
+        // Load effects
+        function loadEffects() {
+            const grid = document.getElementById('effects-grid');
+            grid.innerHTML = '';
+            
+            Object.entries(effectsLibrary).forEach(([key, effect]) => {
+                const effectItem = document.createElement('div');
+                effectItem.className = 'effect-item';
+                effectItem.innerHTML = `
+                    <div class="effect-preview" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
+                    <div>${effect.name}</div>
+                    ${effect.premium ? '<div style="font-size: 10px; color: gold;">⭐ Premium</div>' : ''}
+                `;
+                effectItem.onclick = () => applyEffect(key);
+                grid.appendChild(effectItem);
+            });
+        }
+
+        // Apply effect
+        async function applyEffect(effectId) {
+            if (selectedClip === null) {
+                tg.showPopup({
+                    title: 'No Clip Selected',
+                    message: 'Please select a clip from timeline first',
+                    buttons: [{type: 'ok'}]
+                });
+                return;
+            }
+            
+            const effect = effectsLibrary[effectId];
+            if (effect.premium && !tg.initDataUnsafe.user.is_premium) {
+                tg.showPopup({
+                    title: 'Premium Required',
+                    message: 'This effect is for premium users only. Upgrade to use it!',
+                    buttons: [{type: 'ok'}]
+                });
+                return;
+            }
+            
+            currentProject.clips[selectedClip].effects.push(effectId);
+            tg.showPopup({
+                title: 'Effect Applied',
+                message: `${effect.name} applied successfully!`,
+                buttons: [{type: 'ok'}]
+            });
+            
+            closeModal('effects-modal');
+        }
+
+        // Show filters
+        function showFilters() {
+            const modal = document.getElementById('effects-modal');
+            const grid = document.getElementById('effects-grid');
+            grid.innerHTML = '';
+            
+            Object.entries(filtersLibrary).forEach(([key, filter]) => {
+                const filterItem = document.createElement('div');
+                filterItem.className = 'effect-item';
+                filterItem.innerHTML = `
+                    <div class="effect-preview" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
+                    <div>${filter.name}</div>
+                    ${filter.premium ? '<div style="font-size: 10px; color: gold;">⭐ Premium</div>' : ''}
+                `;
+                filterItem.onclick = () => applyFilter(key);
+                grid.appendChild(filterItem);
+            });
+            
+            modal.style.display = 'flex';
+        }
+
+        // Apply filter
+        async function applyFilter(filterId) {
+            if (selectedClip === null) {
+                tg.showPopup({
+                    title: 'No Clip Selected',
+                    message: 'Please select a clip first',
+                    buttons: [{type: 'ok'}]
+                });
+                return;
+            }
+            
+            tg.showPopup({
+                title: 'Filter Applied',
+                message: 'Filter added successfully!',
+                buttons: [{type: 'ok'}]
+            });
+            
+            closeModal('effects-modal');
+        }
+
+        // Show text overlay
+        function showText() {
+            tg.showPopup({
+                title: 'Add Text',
+                message: 'Enter your text:',
+                buttons: [{type: 'ok'}, {type: 'cancel'}]
+            }, (buttonId) => {
+                if (buttonId === 'ok') {
+                    tg.showPopup({
+                        title: 'Text Style',
+                        message: 'Choose style:',
+                        buttons: [
+                            {type: 'default', text: 'Normal'},
+                            {type: 'default', text: 'Bold'},
+                            {type: 'default', text: 'Animated'}
+                        ]
+                    });
+                }
+            });
+        }
+
+        // Show music library
+        function showMusic() {
+            tg.showPopup({
+                title: 'Music Library',
+                message: 'Choose background music:',
+                buttons: [
+                    {type: 'default', text: '🎵 Chill Beats'},
+                    {type: 'default', text: '🎸 Rock'},
+                    {type: 'default', text: '🎹 Classical'},
+                    {type: 'cancel'}
+                ]
+            });
+        }
+
+        // Show transitions
+        function showTransitions() {
+            tg.showPopup({
+                title: 'Transitions',
+                message: 'Select transition type:',
+                buttons: [
+                    {type: 'default', text: 'Fade'},
+                    {type: 'default', text: 'Slide'},
+                    {type: 'default', text: 'Zoom'},
+                    {type: 'default', text: 'Wipe'},
+                    {type: 'cancel'}
+                ]
+            });
+        }
+
+        // Show stickers
+        function showStickers() {
+            tg.showPopup({
+                title: 'Stickers',
+                message: 'Choose sticker pack:',
+                buttons: [
+                    {type: 'default', text: '😀 Emojis'},
+                    {type: 'default', text: '🎉 Celebrations'},
+                    {type: 'default', text: '❤️ Love'},
+                    {type: 'cancel'}
+                ]
+            });
+        }
+
+        // Show speed control
+        function showSpeed() {
+            tg.showPopup({
+                title: 'Speed Control',
+                message: 'Adjust video speed:',
+                buttons: [
+                    {type: 'default', text: '0.5x'},
+                    {type: 'default', text: '1x'},
+                    {type: 'default', text: '2x'},
+                    {type: 'cancel'}
+                ]
+            });
+        }
+
+        // Show crop tool
+        function showCrop() {
+            tg.showPopup({
+                title: 'Crop Video',
+                message: 'Select aspect ratio:',
+                buttons: [
+                    {type: 'default', text: '16:9'},
+                    {type: 'default', text: '9:16'},
+                    {type: 'default', text: '1:1'},
+                    {type: 'cancel'}
+                ]
+            });
+        }
+
+        // Export video
+        async function exportVideo() {
+            if (currentProject.clips.length === 0) {
+                tg.showPopup({
+                    title: 'No Media',
+                    message: 'Please add media to timeline first',
+                    buttons: [{type: 'ok'}]
+                });
+                return;
+            }
+            
+            showLoading();
+            
+            // Simulate video processing
+            setTimeout(() => {
+                hideLoading();
+                
+                // Send data to bot
+                tg.sendData(JSON.stringify({
+                    action: 'export',
+                    project: currentProject,
+                    timestamp: Date.now()
+                }));
+                
+                tg.showPopup({
+                    title: 'Export Complete!',
+                    message: 'Your video is ready. Check your Telegram chat!',
+                    buttons: [{type: 'ok'}]
+                });
+            }, 3000);
+        }
+
+        // Save project
+        function saveProject() {
+            tg.sendData(JSON.stringify({
+                action: 'save',
+                project: currentProject,
+                timestamp: Date.now()
+            }));
+            
+            tg.showPopup({
+                title: 'Saved',
+                message: 'Project saved successfully!',
+                buttons: [{type: 'ok'}]
+            });
+        }
+
+        // Show projects
+        function showProjects() {
+            tg.showPopup({
+                title: 'My Projects',
+                message: 'Loading your projects...',
+                buttons: [{type: 'ok'}]
+            });
+        }
+
+        // Show settings
+        function showSettings() {
+            tg.showPopup({
+                title: 'Settings',
+                message: 'Export Quality:\n• 720p (Free)\n• 1080p (Premium)\n• 4K (Premium)',
+                buttons: [{type: 'ok'}]
+            });
+        }
+
+        // Close modal
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Show/hide loading
+        function showLoading() {
+            document.getElementById('loading-overlay').style.display = 'flex';
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading-overlay').style.display = 'none';
+        }
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+  </html>
