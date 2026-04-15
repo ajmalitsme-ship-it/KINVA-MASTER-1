@@ -3117,8 +3117,302 @@ class KinvaMasterBot:
         self.application.add_handler(MessageHandler(filters.AUDIO, self.handle_audio))
         self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_text))
         self.application.add_handler(MessageHandler(filters.Document.ALL, self.handle_document))
+# ==================== USER COMMANDS ====================
+
+async def cmd_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /start command"""
+    user = update.effective_user
+    user_id = user.id
     
+    args = context.args
+    referred_by = int(args[0]) if args and args[0].isdigit() and int(args[0]) != user_id else None
+    
+    self.db.register_user(user_id, user.username, user.first_name, user.last_name, referred_by)
+    
+    if self.db.is_verified(user_id):
+        await self._send_main_menu(update, user)
+        return
+    
+    # Generate CAPTCHA
+    num1, num2 = random.randint(5, 20), random.randint(5, 20)
+    op = random.choice(['+', '-'])
+    if op == '+':
+        answer = str(num1 + num2)
+    else:
+        answer = str(num1 - num2)
+    
+    options = [answer]
+    while len(options) < 4:
+        wrong = str(int(answer) + random.randint(-5, 5))
+        if wrong != answer and wrong not in options:
+            options.append(wrong)
+    random.shuffle(options)
+    
+    session = self.get_session(user_id)
+    session.captcha_code = answer
+    session.captcha_attempts = 0
+    session.captcha_time = datetime.now()
+    session.state = UserState.AWAITING_CAPTCHA
+    
+    await update.message.reply_text(
+        f"🌟 *WELCOME TO KIRA-FX ULTRA BOT* 🌟\n\n"
+        f"Please solve:\n\n`{num1} {op} {num2} = ?`\n\n",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=KeyboardBuilder.get_captcha_keyboard(answer, options)
+    )
+
+async def _send_main_menu(self, update: Update, user: User):
+    """Send main menu to user"""
+    user_id = user.id
+    is_admin = user_id in ADMIN_IDS or user_id == OWNER_ID
+    is_premium = self.db.is_premium(user_id)
+    stats = self.db.get_user_stats(user_id)
+    
+    menu_msg = (
+        f"🎨 *KIRA-FX ULTRA BOT* 🎨\n\n"
+        f"*Welcome back, {user.first_name}!*\n\n"
+        f"📊 *Your Stats:*\n"
+        f"• Total Edits: `{stats.get('total_edits', 0)}`\n"
+        f"• Credits: `{stats.get('credits', 100)}`\n"
+    )
+    await update.message.reply_text(
+        menu_msg, 
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=KeyboardBuilder.get_main_menu(is_admin, is_premium)
+    )
+
+async def cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /help command"""
+    await update.message.reply_text(
+        "❓ *HELP* ❓\n\n"
+        "• /start - Start the bot\n"
+        "• /daily - Claim daily reward\n"
+        "• /refer - Get referral link\n"
+        "• /credits - Check credits\n"
+        "• /cancel - Cancel operation\n",
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+async def cmd_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /stats command"""
+    user = update.effective_user
+    stats = self.db.get_user_stats(user.id)
+    await update.message.reply_text(
+        f"📊 *YOUR STATISTICS* 📊\n\n"
+        f"• Total Edits: `{stats.get('total_edits', 0)}`\n"
+        f"• Credits: `{stats.get('credits', 100)}`\n",
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+async def cmd_cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /cancel command"""
+    user_id = update.effective_user.id
+    if user_id in self.sessions:
+        del self.sessions[user_id]
+    await update.message.reply_text("✅ *Operation cancelled!*", parse_mode=ParseMode.MARKDOWN)
+
+async def cmd_daily(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /daily command"""
+    user_id = update.effective_user.id
+    reward, streak = self.db.claim_daily_reward(user_id)
+    if reward > 0:
+        await update.message.reply_text(f"⭐ *Daily Reward:* `{reward} credits`\nStreak: `{streak} days`", parse_mode=ParseMode.MARKDOWN)
+    else:
+        await update.message.reply_text(f"❌ Already claimed today!\nStreak: `{streak} days`", parse_mode=ParseMode.MARKDOWN)
+
+async def cmd_refer(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /refer command"""
+    user_id = update.effective_user.id
+    bot_username = (await self.application.bot.get_me()).username
+    await update.message.reply_text(
+        f"👥 *REFERRAL*\n\n`https://t.me/{bot_username}?start={user_id}`",
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+async def cmd_credits(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /credits command"""
+    user_id = update.effective_user.id
+    credits = self.db.get_credits(user_id)
+    await update.message.reply_text(f"💰 *Credits:* `{credits}`", parse_mode=ParseMode.MARKDOWN)
+
+async def cmd_premium(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /premium command"""
+    await update.message.reply_text("⭐ *Premium features coming soon!*", parse_mode=ParseMode.MARKDOWN)
+
+async def cmd_feedback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /feedback command"""
+    session = self.get_session(update.effective_user.id)
+    session.state = UserState.AWAITING_FEEDBACK
+    await update.message.reply_text("📝 *Send your feedback:*", parse_mode=ParseMode.MARKDOWN)
+
+# ==================== ADMIN COMMANDS ====================
+
+async def cmd_admin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /admin command"""
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS and user_id != OWNER_ID:
+        await update.message.reply_text("⛔ *Access denied!*", parse_mode=ParseMode.MARKDOWN)
+        return
+    await update.message.reply_text("👑 *Admin Panel*", parse_mode=ParseMode.MARKDOWN, reply_markup=KeyboardBuilder.get_admin_panel())
+
+async def cmd_broadcast(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /broadcast command"""
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS and user_id != OWNER_ID:
+        return
+    session = self.get_session(user_id)
+    session.state = UserState.AWAITING_BROADCAST
+    await update.message.reply_text("📢 *Send broadcast message:*", parse_mode=ParseMode.MARKDOWN)
+
+async def cmd_ban(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /ban command"""
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS and user_id != OWNER_ID:
+        return
+    if not context.args:
+        await update.message.reply_text("Usage: /ban <user_id> [reason]")
+        return
+    try:
+        target_id = int(context.args[0])
+        reason = " ".join(context.args[1:]) if len(context.args) > 1 else "No reason"
+        self.db.ban_user(target_id, user_id, reason)
+        await update.message.reply_text(f"✅ *User {target_id} banned!*", parse_mode=ParseMode.MARKDOWN)
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID!")
+
+async def cmd_unban(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /unban command"""
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS and user_id != OWNER_ID:
+        return
+    if not context.args:
+        await update.message.reply_text("Usage: /unban <user_id>")
+        return
+    try:
+        target_id = int(context.args[0])
+        self.db.unban_user(target_id, user_id)
+        await update.message.reply_text(f"✅ *User {target_id} unbanned!*", parse_mode=ParseMode.MARKDOWN)
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID!")
+
+async def cmd_mute(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /mute command"""
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS and user_id != OWNER_ID:
+        return
+    if len(context.args) < 2:
+        await update.message.reply_text("Usage: /mute <user_id> <minutes>")
+        return
+    try:
+        target_id = int(context.args[0])
+        minutes = int(context.args[1])
+        self.db.mute_user(target_id, user_id, minutes)
+        await update.message.reply_text(f"✅ *User {target_id} muted for {minutes} minutes!*", parse_mode=ParseMode.MARKDOWN)
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID or minutes!")
+
+async def cmd_unmute(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /unmute command"""
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS and user_id != OWNER_ID:
+        return
+    if not context.args:
+        await update.message.reply_text("Usage: /unmute <user_id>")
+        return
+    try:
+        target_id = int(context.args[0])
+        self.db.unmute_user(target_id, user_id)
+        await update.message.reply_text(f"✅ *User {target_id} unmuted!*", parse_mode=ParseMode.MARKDOWN)
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID!")
+
+async def cmd_warn(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /warn command"""
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS and user_id != OWNER_ID:
+        return
+    if len(context.args) < 2:
+        await update.message.reply_text("Usage: /warn <user_id> <reason>")
+        return
+    try:
+        target_id = int(context.args[0])
+        reason = " ".join(context.args[1:])
+        self.db.add_warning(target_id, user_id, reason)
+        await update.message.reply_text(f"⚠️ *User {target_id} warned!*", parse_mode=ParseMode.MARKDOWN)
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID!")
+
+async def cmd_clear_warns(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /clearwarns command"""
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS and user_id != OWNER_ID:
+        return
+    if not context.args:
+        await update.message.reply_text("Usage: /clearwarns <user_id>")
+        return
+    try:
+        target_id = int(context.args[0])
+        self.db.clear_warnings(target_id, user_id)
+        await update.message.reply_text(f"✅ *Warnings cleared for {target_id}!*", parse_mode=ParseMode.MARKDOWN)
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID!")
+
+async def cmd_give_premium(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /givepremium command"""
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS and user_id != OWNER_ID:
+        return
+    if len(context.args) < 2:
+        await update.message.reply_text("Usage: /givepremium <user_id> <days>")
+        return
+    try:
+        target_id = int(context.args[0])
+        days = int(context.args[1])
+        self.db.give_premium(target_id, days, user_id)
+        await update.message.reply_text(f"✅ *Premium granted to {target_id} for {days} days!*", parse_mode=ParseMode.MARKDOWN)
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID or days!")
+
+async def cmd_add_credits(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /addcredits command"""
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS and user_id != OWNER_ID:
+        return
+    if len(context.args) < 2:
+        await update.message.reply_text("Usage: /addcredits <user_id> <amount>")
+        return
+    try:
+        target_id = int(context.args[0])
+        amount = int(context.args[1])
+        self.db.add_credits(target_id, amount, user_id)
+        await update.message.reply_text(f"✅ *Added {amount} credits to {target_id}!*", parse_mode=ParseMode.MARKDOWN)
+    except ValueError:
+        await update.message.reply_text("❌ Invalid user ID or amount!")
+
+# ==================== CUSTOM COMMANDS ====================
+
+async def cmd_custom_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /customcmd and /run commands"""
+    args = context.args
+    if not args:
+        await update.message.reply_text("Usage: `/run <command_name>`", parse_mode=ParseMode.MARKDOWN)
+        return
+    cmd_name = args[0].lower()
+    cmd_data = self.db.get_custom_command(cmd_name)
+    if cmd_data:
+        await update.message.reply_text(cmd_data['response_content'], parse_mode=ParseMode.MARKDOWN)
+    else:
+        await update.message.reply_text(f"❌ Command '/{cmd_name}' not found!", parse_mode=ParseMode.MARKDOWN)
+
+async def cmd_add_custom_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /addcmd command"""
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS and user_id != OWNER_ID:
+        await update.message.reply_text("⛔ *Access denied!*", parse_mode=ParseMode.MARKDOWN)
+        return
+    await update.message.reply_text("➕ *Add Custom Command*\nUsage: `/addcmd name text | response`", parse_mode=ParseMode.MARKDOWN)    
     async def start(self):
+        
         """Start the bot with polling mode"""
         self.application = ApplicationBuilder().token(BOT_TOKEN).build()
         self._register_handlers()  # ← This will now work!
