@@ -3140,6 +3140,180 @@ class KinvaMasterBot:
             await self.application.shutdown()
         shutil.rmtree(TEMP_DIR, ignore_errors=True)
         logger.info("✅ Bot stopped.")
+        # ==================== CALLBACK HANDLER ====================
+
+async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle all callback queries from inline keyboards"""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    data = query.data
+    session = self.get_session(user_id)
+    
+    # Check if user is banned
+    is_banned, ban_reason = self.db.is_banned(user_id)
+    if is_banned:
+        await query.edit_message_text(
+            f"⛔ *You are banned from using this bot!*\nReason: {ban_reason}",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    
+    # Check if user is muted
+    is_muted, muted_until = self.db.is_muted(user_id)
+    if is_muted and data not in ["stats", "help", "daily_reward", "back_main"]:
+        time_str = f" until {muted_until.strftime('%Y-%m-%d %H:%M')}" if muted_until else ""
+        await query.edit_message_text(
+            f"🔇 *You are muted{time_str}!*",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    
+    # CAPTCHA Handler
+    if data.startswith("captcha_"):
+        selected = data.replace("captcha_", "")
+        if selected == session.captcha_code:
+            self.db.verify_user(user_id, "captcha")
+            session.state = UserState.VERIFIED
+            await query.edit_message_text("✅ *Verification successful!*", parse_mode=ParseMode.MARKDOWN)
+            await self._send_main_menu(update, query.from_user)
+        else:
+            session.captcha_attempts += 1
+            if session.captcha_attempts >= MAX_CAPTCHA_ATTEMPTS:
+                await query.edit_message_text("❌ *Verification failed!* Use /start to try again.", parse_mode=ParseMode.MARKDOWN)
+                if user_id in self.sessions:
+                    del self.sessions[user_id]
+            else:
+                await query.edit_message_text(f"❌ *Incorrect!* Attempts left: {MAX_CAPTCHA_ATTEMPTS - session.captcha_attempts}", parse_mode=ParseMode.MARKDOWN)
+        return
+    
+    # Main Menu Navigation
+    if data == "back_main":
+        is_admin = user_id in ADMIN_IDS or user_id == OWNER_ID
+        is_premium = self.db.is_premium(user_id)
+        await query.edit_message_text(
+            "🎨 *Main Menu*",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=KeyboardBuilder.get_main_menu(is_admin, is_premium)
+        )
+        return
+    
+    # Default response
+    await query.edit_message_text("⚠️ *Unknown option!*", parse_mode=ParseMode.MARKDOWN)
+
+
+# ==================== IMAGE HANDLER ====================
+
+async def handle_image(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle incoming image messages"""
+    user_id = update.effective_user.id
+    
+    if not self.db.is_verified(user_id):
+        await update.message.reply_text("❌ Please verify first with /start")
+        return
+    
+    is_banned, ban_reason = self.db.is_banned(user_id)
+    if is_banned:
+        await update.message.reply_text(f"⛔ You are banned! Reason: {ban_reason}")
+        return
+    
+    await update.message.reply_text("🖼️ *Image received!*\n\nUse the menu to edit images.", parse_mode=ParseMode.MARKDOWN, reply_markup=KeyboardBuilder.get_image_menu())
+
+
+# ==================== VIDEO HANDLER ====================
+
+async def handle_video(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle incoming video messages"""
+    user_id = update.effective_user.id
+    
+    if not self.db.is_verified(user_id):
+        await update.message.reply_text("❌ Please verify first with /start")
+        return
+    
+    is_banned, _ = self.db.is_banned(user_id)
+    if is_banned:
+        await update.message.reply_text("⛔ You are banned from using this bot!")
+        return
+    
+    await update.message.reply_text("🎬 *Video received!*\n\nUse the menu to edit videos.", parse_mode=ParseMode.MARKDOWN, reply_markup=KeyboardBuilder.get_video_menu())
+
+
+# ==================== AUDIO HANDLER ====================
+
+async def handle_audio(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle incoming audio messages"""
+    user_id = update.effective_user.id
+    
+    if not self.db.is_verified(user_id):
+        await update.message.reply_text("❌ Please verify first with /start")
+        return
+    
+    is_banned, _ = self.db.is_banned(user_id)
+    if is_banned:
+        await update.message.reply_text("⛔ You are banned from using this bot!")
+        return
+    
+    await update.message.reply_text("🎵 *Audio received!*\n\nUse the menu to edit audio.", parse_mode=ParseMode.MARKDOWN, reply_markup=KeyboardBuilder.get_audio_menu())
+
+
+# ==================== DOCUMENT HANDLER ====================
+
+async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle document messages (for code formatting)"""
+    user_id = update.effective_user.id
+    
+    if not self.db.is_verified(user_id):
+        await update.message.reply_text("❌ Please verify first with /start")
+        return
+    
+    await update.message.reply_text("📄 *Document received!*\n\nUse /code to format code files.", parse_mode=ParseMode.MARKDOWN)
+
+
+# ==================== TEXT HANDLER ====================
+
+async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle all text messages"""
+    user_id = update.effective_user.id
+    session = self.get_session(user_id)
+    text = update.message.text.strip()
+    
+    # Check rate limit
+    if not self._check_rate_limit(user_id):
+        await update.message.reply_text("⚠️ *Rate limit exceeded!* Please wait a moment.", parse_mode=ParseMode.MARKDOWN)
+        return
+    
+    # Update last active
+    session.last_active = datetime.now()
+    
+    # Check for auto responses
+    if session.state == UserState.VERIFIED:
+        auto_response = self.db.get_auto_response(text)
+        if auto_response:
+            await update.message.reply_text(auto_response['response'], parse_mode=ParseMode.MARKDOWN)
+            return
+    
+    # CAPTCHA
+    if session.state == UserState.AWAITING_CAPTCHA:
+        if text == session.captcha_code:
+            self.db.verify_user(user_id, "captcha")
+            session.state = UserState.VERIFIED
+            await update.message.reply_text("✅ *Verification successful!*", parse_mode=ParseMode.MARKDOWN)
+            await self._send_main_menu(update, update.effective_user)
+        else:
+            session.captcha_attempts += 1
+            if session.captcha_attempts >= MAX_CAPTCHA_ATTEMPTS:
+                await update.message.reply_text("❌ *Verification failed!* Use /start to try again.", parse_mode=ParseMode.MARKDOWN)
+                if user_id in self.sessions:
+                    del self.sessions[user_id]
+            else:
+                await update.message.reply_text(f"❌ *Incorrect!* Attempts left: {MAX_CAPTCHA_ATTEMPTS - session.captcha_attempts}", parse_mode=ParseMode.MARKDOWN)
+        return
+    
+    # Default response
+    await update.message.reply_text(
+        "❓ *Unknown command or input*\n\nUse /help to see available commands, or /start to begin.",
+        parse_mode=ParseMode.MARKDOWN
+)
     
     def _register_handlers(self):
         """Register all command and message handlers"""
