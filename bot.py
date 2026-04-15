@@ -3064,31 +3064,43 @@ class KeyboardBuilder:
 # ==================== MAIN BOT CLASS ====================
 # ==================== MAIN BOT CLASS ====================
 
-class KinvaMasterBot:
-    """Main bot class handling all commands and callbacks"""
+def _register_handlers(self):
+    """Register all command and message handlers"""
+    # User commands
+    self.application.add_handler(CommandHandler("start", self.cmd_start))
+    self.application.add_handler(CommandHandler("help", self.cmd_help))
+    self.application.add_handler(CommandHandler("stats", self.cmd_stats))
+    self.application.add_handler(CommandHandler("cancel", self.cmd_cancel))
+    self.application.add_handler(CommandHandler("daily", self.cmd_daily))
+    self.application.add_handler(CommandHandler("refer", self.cmd_refer))
+    self.application.add_handler(CommandHandler("credits", self.cmd_credits))
+    self.application.add_handler(CommandHandler("premium", self.cmd_premium))
+    self.application.add_handler(CommandHandler("feedback", self.cmd_feedback))
     
-    def __init__(self):
-        self.db = DatabaseManager(DATABASE_PATH)
-        self.sessions: Dict[int, UserSession] = {}
-        self.image_processor = ImageProcessor()
-        self.video_processor = VideoProcessor()
-        self.audio_processor = AudioProcessor()
-        self.code_formatter = CodeFormatter()
-        self.application = None
-        self.flask_app = None
-        self.user_rate_limits = defaultdict(list)
-        self._background_tasks = []
+    # Admin commands
+    self.application.add_handler(CommandHandler("admin", self.cmd_admin))
+    self.application.add_handler(CommandHandler("broadcast", self.cmd_broadcast))
+    self.application.add_handler(CommandHandler("ban", self.cmd_ban))
+    self.application.add_handler(CommandHandler("unban", self.cmd_unban))
+    self.application.add_handler(CommandHandler("mute", self.cmd_mute))
+    self.application.add_handler(CommandHandler("unmute", self.cmd_unmute))
+    self.application.add_handler(CommandHandler("warn", self.cmd_warn))
+    self.application.add_handler(CommandHandler("clearwarns", self.cmd_clear_warns))
+    self.application.add_handler(CommandHandler("givepremium", self.cmd_give_premium))
+    self.application.add_handler(CommandHandler("addcredits", self.cmd_add_credits))
     
-    async def start(self):
-        """Start the bot with polling mode"""
-        self.application = ApplicationBuilder().token(BOT_TOKEN).build()
-        self._register_handlers()
-        await self._set_bot_commands()
-        
-        await self.application.initialize()
-        await self.application.start()
-        await self.application.updater.start_polling()
-        logger.info("✅ KIRA-FX Bot started in polling mode")
+    # Custom commands
+    self.application.add_handler(CommandHandler("customcmd", self.cmd_custom_command))
+    self.application.add_handler(CommandHandler("run", self.cmd_custom_command))
+    self.application.add_handler(CommandHandler("addcmd", self.cmd_add_custom_command))
+    
+    # Callbacks and messages
+    self.application.add_handler(CallbackQueryHandler(self.handle_callback))
+    self.application.add_handler(MessageHandler(filters.PHOTO, self.handle_image))
+    self.application.add_handler(MessageHandler(filters.VIDEO, self.handle_video))
+    self.application.add_handler(MessageHandler(filters.AUDIO, self.handle_audio))
+    self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_text))
+    self.application.add_handler(MessageHandler(filters.Document.ALL, self.handle_document))
         
         self._start_web_server()
         self._background_tasks.append(asyncio.create_task(self._cleanup_sessions_loop()))
