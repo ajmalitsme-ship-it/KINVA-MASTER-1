@@ -1,7 +1,23 @@
-FROM nginx:alpine
+FROM python:3.10-slim
 
-# Copy your index.html to Nginx's default HTML directory
-COPY index.html /usr/share/nginx/html/index.html
+WORKDIR /app
 
-# Expose port 80
-EXPOSE 80
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy bot files
+COPY . .
+
+# Run bot
+CMD ["python", "bot.py"]
