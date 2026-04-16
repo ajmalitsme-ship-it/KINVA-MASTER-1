@@ -27,7 +27,6 @@ from functools import wraps
 from PIL import Image, ImageFilter, ImageEnhance, ImageDraw, ImageFont, ImageOps
 import requests
 from gtts import gTTS
-import whisper
 import numpy as np
 import cv2
 from pyrogram import Client, filters, enums, idle
