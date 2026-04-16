@@ -49,8 +49,8 @@ logger = logging.getLogger(__name__)
 # ==================== COMPLETE BULK CONFIGURATION ====================
 class Config:
     # Bot Configuration - Set via Environment Variables
-    API_ID = int(os.environ.get("API_ID", "12345"))
-    API_HASH = os.environ.get("API_HASH", "your_api_hash")
+    API_ID = int(os.environ.get("API_ID", "27806628"))
+    API_HASH = os.environ.get("API_HASH", "25d88301e886b82826a525b7cf52e090")
     BOT_TOKEN = os.environ.get("BOT_TOKEN", "8623600399:AAGNn_d6Lq5DRrwelD_rvOUfgsM-jyk8Kf8")
     OWNER_ID = int(os.environ.get("OWNER_ID", 8525952693))
     
