@@ -51,8 +51,8 @@ class Config:
     # Bot Configuration - Set via Environment Variables
     API_ID = int(os.environ.get("API_ID", "12345"))
     API_HASH = os.environ.get("API_HASH", "your_api_hash")
-    BOT_TOKEN = os.environ.get("BOT_TOKEN", "your_bot_token")
-    OWNER_ID = int(os.environ.get("OWNER_ID", "123456789"))
+    BOT_TOKEN = os.environ.get("BOT_TOKEN", "8623600399:AAGNn_d6Lq5DRrwelD_rvOUfgsM-jyk8Kf8")
+    OWNER_ID = int(os.environ.get("OWNER_ID", 8525952693))
     
     # Database & Storage
     DB_PATH = "media_bot.db"
