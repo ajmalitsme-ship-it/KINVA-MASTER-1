@@ -1,4 +1,4 @@
-gtts==2.3.2
+# Core Dependencies - Fixed Versions
 pyrogram==2.0.106
 Pillow==10.1.0
 opencv-python-headless==4.8.1.78
@@ -7,11 +7,28 @@ moviepy==1.0.3
 requests==2.31.0
 python-dotenv==1.0.0
 aiohttp==3.9.1
-whisper==1.1.10
-pytgcalls==5.0.1
-tgcrypto==1.2.5
+
+# Audio/Speech (Fixed)
+gTTS==2.2.4
+
+# Whisper - Use openai-whisper instead
+openai-whisper==20231117
+
+# Optional - Remove pytgcalls as it's not needed for basic bot
+# pytgcalls==5.0.1 - REMOVED (version doesn't exist)
+
+# Utilities
 aiofiles==23.2.1
 pydantic==2.5.0
 colorama==0.4.6
 tqdm==4.66.1
 psutil==5.9.6
+
+# Image Processing
+scikit-image==0.22.0
+imageio==2.33.0
+imageio-ffmpeg==0.4.9
+
+# Video/Audio Processing
+scipy==1.11.4
+pydub==0.25.1
