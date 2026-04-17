@@ -39,30 +39,20 @@ from pyrogram.errors import FloodWait, UserNotParticipant, RPCError
 from pyrogram.enums import ParseMode, ChatAction
 from flask import Flask
 from threading import Thread
-import time
 
-# Create Flask app
-web_app = Flask(__name__)
+flask_app = Flask(__name__)
 
-@web_app.route('/')
+@flask_app.route('/')
 def home():
-    return {
-        "status": "online",
-        "bot": "KiraFx Media Editor Bot v5.0",
-        "uptime": time.time() - start_time
-    }
+    return 'Bot Alive!', 200
 
-@web_app.route('/health')
-def health():
-    return {"status": "healthy"}, 200
+def run():
+    flask_app.run(host='0.0.0.0', port=8080)
 
-def run_web_server():
-    web_app.run(host='0.0.0.0', port=8080)
+# Start web server
+Thread(target=run).start()
 
-# Start web server in background thread
-start_time = time.time()
-Thread(target=run_web_server, daemon=True).start()
-
+# Your existing bot code here...
 # Then start your bot
 # ... your existing bot code ...
 # ==================== LOGGING SETUP ====================
