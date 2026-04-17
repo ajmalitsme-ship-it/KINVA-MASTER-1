@@ -37,36 +37,34 @@ from pyrogram.types import (
 )
 from pyrogram.errors import FloodWait, UserNotParticipant, RPCError
 from pyrogram.enums import ParseMode, ChatAction
-# Add at the top with other imports
-from aiohttp import web
-import threading
+from flask import Flask
+from threading import Thread
+import time
 
-# Add this class or method
-class HealthServer:
-    def __init__(self, port=8080):
-        self.port = port
-        self.app = web.Application()
-        self.app.router.add_get('/health', self.health_check)
-        self.app.router.add_get('/', self.health_check)
-    
-    async def health_check(self, request):
-        return web.Response(text="Bot is running!", status=200)
-    
-    def run(self):
-        web.run_app(self.app, host='0.0.0.0', port=self.port)
+# Create Flask app
+web_app = Flask(__name__)
 
-# In your MediaEditorBot class, add:
-def start_health_server(self):
-    server = HealthServer()
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    print("✅ Health check server started on port 8080")
+@web_app.route('/')
+def home():
+    return {
+        "status": "online",
+        "bot": "KiraFx Media Editor Bot v5.0",
+        "uptime": time.time() - start_time
+    }
 
-# In your run method, before app.run():
-def run(self):
-    self.start_health_server()
-    print("🤖 Bot Starting...")
-    # ... rest of your run code
+@web_app.route('/health')
+def health():
+    return {"status": "healthy"}, 200
+
+def run_web_server():
+    web_app.run(host='0.0.0.0', port=8080)
+
+# Start web server in background thread
+start_time = time.time()
+Thread(target=run_web_server, daemon=True).start()
+
+# Then start your bot
+# ... your existing bot code ...
 # ==================== LOGGING SETUP ====================
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
