@@ -928,16 +928,60 @@ class MediaProcessor:
     
     @staticmethod
     async def download_media(client, file_id, user_id, file_type="video"):
-        ext_map = {"video": ".mp4", "image": ".jpg", "document": ".file"}
-        ext = ext_map.get(file_type, ".mp4")
-        file_path = f"{Config.TEMP_DIR}/{user_id}_{int(datetime.now().timestamp())}_{random.randint(1000,9999)}{ext}"
+    """Fixed download method with better error handling"""
+    try:
+        # Create temp directory if not exists
+        os.makedirs(Config.TEMP_DIR, exist_ok=True)
         
-        try:
-            await client.download_media(file_id, file_path=file_path)
-            return file_path
-        except Exception as e:
-            logger.error(f"Download error: {e}")
+        # Determine file extension
+        ext_map = {
+            "video": ".mp4", 
+            "image": ".jpg", 
+            "document": ".file",
+            "photo": ".jpg",
+            "audio": ".mp3"
+        }
+        ext = ext_map.get(file_type, ".mp4")
+        
+        # Generate unique filename
+        timestamp = int(datetime.now().timestamp())
+        random_id = random.randint(1000, 9999)
+        file_path = os.path.join(Config.TEMP_DIR, f"{user_id}_{timestamp}_{random_id}{ext}")
+        
+        # Download with progress tracking
+        logger.info(f"Downloading file to: {file_path}")
+        
+        # Try different download methods
+        if isinstance(file_id, str):
+            # If file_id is string, try to download directly
+            downloaded = await client.download_media(
+                message=file_id,
+                file_name=file_path,
+                progress=None
+            )
+        else:
+            # If file_id is message or document object
+            downloaded = await client.download_media(
+                message=file_id,
+                file_name=file_path
+            )
+        
+        if downloaded and os.path.exists(downloaded):
+            file_size = os.path.getsize(downloaded)
+            logger.info(f"Download successful: {file_size} bytes")
+            return downloaded
+        else:
+            logger.error(f"Download failed - no file created")
             return None
+            
+    except FloodWait as e:
+        logger.warning(f"Flood wait: {e.x} seconds")
+        await asyncio.sleep(e.x)
+        return await MediaProcessor.download_media(client, file_id, user_id, file_type)
+        
+    except Exception as e:
+        logger.error(f"Download error: {str(e)}", exc_info=True)
+        return None
     
     @staticmethod
     async def apply_image_filter(image_path: str, filter_name: str, params: dict = None) -> str:
