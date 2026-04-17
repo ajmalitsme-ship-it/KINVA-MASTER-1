@@ -37,7 +37,36 @@ from pyrogram.types import (
 )
 from pyrogram.errors import FloodWait, UserNotParticipant, RPCError
 from pyrogram.enums import ParseMode, ChatAction
+# Add at the top with other imports
+from aiohttp import web
+import threading
 
+# Add this class or method
+class HealthServer:
+    def __init__(self, port=8080):
+        self.port = port
+        self.app = web.Application()
+        self.app.router.add_get('/health', self.health_check)
+        self.app.router.add_get('/', self.health_check)
+    
+    async def health_check(self, request):
+        return web.Response(text="Bot is running!", status=200)
+    
+    def run(self):
+        web.run_app(self.app, host='0.0.0.0', port=self.port)
+
+# In your MediaEditorBot class, add:
+def start_health_server(self):
+    server = HealthServer()
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    print("✅ Health check server started on port 8080")
+
+# In your run method, before app.run():
+def run(self):
+    self.start_health_server()
+    print("🤖 Bot Starting...")
+    # ... rest of your run code
 # ==================== LOGGING SETUP ====================
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
