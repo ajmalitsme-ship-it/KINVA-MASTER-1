@@ -15,7 +15,7 @@ RUN pip install --upgrade pip
 # Copy and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
+RUN mkdir -p temp_media thumbnails fonts stickers logs
 # Copy application
 COPY . .
 
