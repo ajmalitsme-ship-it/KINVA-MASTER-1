@@ -926,6 +926,7 @@ class MediaProcessor:
         ]
     }
     
+    
     @staticmethod
     async def download_media(client, file_id, user_id, file_type="video"):
     """Fixed download method with better error handling"""
@@ -956,8 +957,7 @@ class MediaProcessor:
             # If file_id is string, try to download directly
             downloaded = await client.download_media(
                 message=file_id,
-                file_name=file_path,
-                progress=None
+                file_name=file_path
             )
         else:
             # If file_id is message or document object
