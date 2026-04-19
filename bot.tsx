@@ -1,1 +1,0 @@
-runprint("hello")
