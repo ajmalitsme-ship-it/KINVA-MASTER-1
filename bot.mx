@@ -1,6 +1,4 @@
 // MX Language Example File
-// This is the main bot file
-
 runprint("Hello World from MX Language!")
 runprint("Welcome to MX Programming Language")
 
@@ -14,10 +12,15 @@ runprint(name)
 runprint("Version: " + version)
 runprint("Year: " + year)
 
-// Calculations
+// Calculations - FIXED VERSION
 let x = 10
 let y = 20
 let sum = x + y
+
+// FIXED: Don't put variable names in quotes
+runprint("Sum of 10 and 20 is: " + sum)
+
+// Or if you want to show the calculation:
 runprint("Sum of " + x + " and " + y + " is: " + sum)
 
 // Multiple messages
@@ -25,6 +28,5 @@ runprint("====================================")
 runprint("MX Language is running successfully!")
 runprint("====================================")
 
-// Function calls
 runprint("Bot initialized at: " + year)
 runprint("All systems operational!")
