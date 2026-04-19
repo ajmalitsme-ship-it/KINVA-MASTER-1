@@ -5,6 +5,6 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-Copy server.py
+COPY server.py
 # Run server instead of main.py
 CMD ["python", "bot.py"]
