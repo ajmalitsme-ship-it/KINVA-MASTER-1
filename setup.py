@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="mx-language",
+    name="mx",
     version="1.0.0",
     author="MX Language Team",
     description="MX Programming Language with runprint as main function",
