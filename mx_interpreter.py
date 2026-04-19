@@ -9,60 +9,68 @@ class MXLangInterpreter:
         self.output = []
         
     def runprint(self, message):
-        """Main print function for MX language"""
-        # Handle string concatenation
-        if '+' in message:
-            parts = message.split('+')
-            result = ''
-            for part in parts:
-                part = part.strip().strip('"\'')
-                if part in self.variables:
-                    result += str(self.variables[part])
-                else:
-                    result += part
-            print(result)
-            self.output.append(result)
-        else:
-            # Handle variables
-            message = message.strip().strip('"\'')
-            if message in self.variables:
-                print(self.variables[message])
-                self.output.append(str(self.variables[message]))
+        """Main print function for MX language - FIXED VERSION"""
+        try:
+            # Check if message contains + for concatenation
+            if '+' in message:
+                parts = message.split('+')
+                result = ''
+                for part in parts:
+                    part = part.strip()
+                    # Remove quotes if present (string literal)
+                    if (part.startswith('"') and part.endswith('"')) or (part.startswith("'") and part.endswith("'")):
+                        part = part[1:-1]
+                        result += part
+                    else:
+                        # This is a variable name - look it up in variables dictionary
+                        if part in self.variables:
+                            result += str(self.variables[part])
+                        else:
+                            # If not a variable, treat as string
+                            result += part
+                print(result)
+                self.output.append(result)
+                return result
             else:
-                print(message)
-                self.output.append(message)
+                # No concatenation - single value
+                message = message.strip()
+                # Check if it's a string literal
+                if (message.startswith('"') and message.endswith('"')) or (message.startswith("'") and message.endswith("'")):
+                    message = message[1:-1]
+                    print(message)
+                    self.output.append(message)
+                    return message
+                # Check if it's a variable
+                elif message in self.variables:
+                    print(self.variables[message])
+                    self.output.append(str(self.variables[message]))
+                    return str(self.variables[message])
+                # Default - print as is
+                else:
+                    print(message)
+                    self.output.append(message)
+                    return message
+        except Exception as e:
+            error_msg = f"Runprint error: {str(e)}"
+            print(error_msg)
+            self.output.append(error_msg)
+            return error_msg
     
     def let(self, var_name, value):
         """Variable declaration"""
-        self.variables[var_name] = value
-        
-    def add(self, a, b):
-        """Add function"""
-        return a + b
-    
-    def sub(self, a, b):
-        """Subtract function"""
-        return a - b
-    
-    def mul(self, a, b):
-        """Multiply function"""
-        return a * b
-    
-    def div(self, a, b):
-        """Divide function"""
-        return a / b if b != 0 else 0
-    
-    def if_stmt(self, condition, true_block, false_block=None):
-        """If statement"""
-        if eval(condition, self.variables):
-            self.execute_block(true_block)
-        elif false_block:
-            self.execute_block(false_block)
-    
-    def execute_block(self, lines):
-        """Execute multiple lines of MX code"""
-        for line in lines:
-            self.parse_line(line)
+        try:
+            # Try to convert value to number if possible
+            if isinstance(value, str):
+                if value.isdigit():
+                    value = int(value)
+                elif value.replace('.', '', 1).isdigit() and value.count('.') <= 1:
+                    value = float(value)
+            
+            self.variables[var_name] = value
+            return True
+        except Exception as e:
+            print(f"Error in let: {str(e)}")
+            return False
     
     def parse_line(self, line):
         """Parse and execute a single line of MX code"""
@@ -70,47 +78,102 @@ class MXLangInterpreter:
         
         if not line or line.startswith('//') or line.startswith('#'):
             return
-            
-        # runprint command
+        
+        # Handle runprint command
         if line.startswith('runprint'):
+            # Extract content between parentheses
             match = re.match(r'runprint\((.*)\)', line)
             if match:
                 self.runprint(match.group(1))
+            return
         
-        # let command
-        elif line.startswith('let'):
+        # Handle let command
+        if line.startswith('let'):
+            # Parse: let variable = value
             match = re.match(r'let\s+(\w+)\s*=\s*(.+)', line)
             if match:
                 var_name = match.group(1)
                 value = match.group(2).strip()
-                # Check if value is number
-                if value.isdigit():
-                    value = int(value)
-                elif value.startswith('"') and value.endswith('"'):
-                    value = value[1:-1]
+                
+                # Check if value is a calculation
+                if '+' in value and not (value.startswith('"') or value.startswith("'")):
+                    # Handle addition of variables
+                    parts = value.split('+')
+                    total = 0
+                    is_string_concat = False
+                    
+                    for part in parts:
+                        part = part.strip()
+                        if part in self.variables:
+                            if isinstance(self.variables[part], (int, float)):
+                                total += self.variables[part]
+                            else:
+                                is_string_concat = True
+                        else:
+                            try:
+                                total += float(part)
+                            except:
+                                is_string_concat = True
+                    
+                    if is_string_concat:
+                        # Handle string concatenation
+                        result = ''
+                        for part in parts:
+                            part = part.strip()
+                            if part in self.variables:
+                                result += str(self.variables[part])
+                            else:
+                                result += part
+                        self.let(var_name, result)
+                    else:
+                        self.let(var_name, total)
                 elif value in self.variables:
-                    value = self.variables[value]
-                self.let(var_name, value)
-        
-        # Mathematical operations
-        elif line.startswith('calc'):
-            match = re.match(r'calc\s+(\w+)\s*=\s*(.+)', line)
-            if match:
-                var_name = match.group(1)
-                expression = match.group(2)
-                try:
-                    result = eval(expression, self.variables)
-                    self.let(var_name, result)
-                except:
-                    pass
+                    self.let(var_name, self.variables[value])
+                else:
+                    self.let(var_name, value)
+            return
     
     def execute_file(self, filename):
         """Execute MX file"""
         try:
-            with open(filename, 'r') as file:
+            with open(filename, 'r', encoding='utf-8') as file:
                 lines = file.readlines()
                 for line in lines:
                     self.parse_line(line)
             return True, "Execution successful"
+        except FileNotFoundError:
+            return False, f"File '{filename}' not found"
         except Exception as e:
             return False, f"Error: {str(e)}"
+
+def main():
+    """Main function to run MX interpreter from command line"""
+    if len(sys.argv) < 2:
+        print("Usage: python mx_interpreter.py <filename.mx>")
+        sys.exit(1)
+    
+    filename = sys.argv[1]
+    
+    if not os.path.exists(filename):
+        print(f"Error: File '{filename}' not found!")
+        sys.exit(1)
+    
+    # Create MX interpreter instance
+    mx = MXLangInterpreter()
+    
+    # Execute MX file
+    print(f"\n{'='*50}")
+    print(f"Executing MX Language File: {filename}")
+    print(f"{'='*50}\n")
+    
+    success, message = mx.execute_file(filename)
+    
+    print(f"\n{'='*50}")
+    if success:
+        print(f"✅ {message}")
+    else:
+        print(f"❌ {message}")
+    print(f"{'='*50}\n")
+
+if __name__ == "__main__":
+    main()
