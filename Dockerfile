@@ -23,4 +23,4 @@ COPY . .
 RUN mkdir -p temp_media thumbnails fonts stickers
 
 # Run bot
-CMD ["python", "bot.py"]
+CMD ["python", "bot.mx"]
