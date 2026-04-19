@@ -1327,7 +1327,7 @@ _thread_pool = ThreadPoolExecutor(max_workers=4)
 _defaults = {
     'welcome_text': f"""<blockquote>🎬 <b>KiraFx Media Editor Bot v7.0</b>
 
-✨ <b>Complete Media Editing Suite — ULTRA PREMIUM</b>
+✨ <b>Completes Media Editing Suite — ULTRA PREMIUM</b>
 
 📸 <b>66+ Image Editing Tools</b>
 🎬 <b>77+ Video Editing Tools</b>
