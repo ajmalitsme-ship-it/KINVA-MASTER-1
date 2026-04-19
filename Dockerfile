@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY mx_interpreter.py .
 COPY main.py .
 COPY server.py .
-COPY bot.mx .
+COPY bot.tsx .
 
 # Run server instead of main.py
 CMD ["python", "server.py"]
