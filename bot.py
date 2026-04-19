@@ -521,13 +521,13 @@ class Config:
     NORMAL_TIMEOUT = 300
 
     INLINE_CACHE_TIME = 0
-    INLINE_PAGE_SIZE = 8
+    INLINE_PAGE_SIZE = 7
     INLINE_PRELOAD = True
 
     GOOGLE_ADS_ENABLED = os.environ.get("GOOGLE_ADS_ENABLED", "True") == "True"
     ADS_CLIENT_ID = os.environ.get("ADS_CLIENT_ID", "ca-pub-xxxxxxxxxxxxx")
     ADS_SLOT_ID = os.environ.get("ADS_SLOT_ID", "1234567890")
-    ADS_TEXT = "⭐ **Premium Users:** No ads ever!\n\n[Click Here to Support](https://www.google.com)"
+    ADS_TEXT = "⭐ **Premium Users:** No ads ever!\n\n[Click Here to Support](https:/kiraAds)"
     ADS_INTERVAL = 3
 
     FORCE_SUB_CHANNEL = os.environ.get("FORCE_SUB_CHANNEL", "")
@@ -535,7 +535,7 @@ class Config:
     UPDATE_CHANNEL = os.environ.get("UPDATE_CHANNEL", "")
     SUPPORT_CHAT = os.environ.get("SUPPORT_CHAT", "")
 
-    WATERMARK_TEXT = os.environ.get("WATERMARK_TEXT", "KiraFx")
+    WATERMARK_TEXT = os.environ.get("WATERMARK_TEXT", "🔥𝐊ɪʀᴀ-𝐅x")
     WATERMARK_OPACITY = 128
     WATERMARK_POSITION = "bottom_right"
     WATERMARK_ENABLED = os.environ.get("WATERMARK_ENABLED", "True") == "True"
@@ -622,7 +622,7 @@ def generate_welcome_image(name: str = "User") -> str:
 
     # Shadow for logo
     for off in [(3, 3), (4, 4)]:
-        draw.text((60 + off[0], 60 + off[1]), "KiraFx", font=font_logo, fill=(0, 0, 80, 180))
+        draw.text((60 + off[0], 60 + off[1]), "❤️𝐊ɪʀᴀ-ꜰx", font=font_logo, fill=(0, 0, 80, 180))
     # Gradient-like logo (2-color via overlay)
     draw.text((60, 60), "KiraFx", font=font_logo, fill=(100, 180, 255))
 
@@ -634,7 +634,7 @@ def generate_welcome_image(name: str = "User") -> str:
     # Feature badges row
     features = [
         "📸 66+ Image Tools", "🎬 77+ Video Effects",
-        "🗜️ 144p → 4K", "👑 60+ Admin Tools", "⚡ Priority Queue"
+        "🗜️ 144p → 4K", "ai tools", "⚡ Priority Queue"
     ]
     fx_y = 215
     for i, feat in enumerate(features):
@@ -651,7 +651,7 @@ def generate_welcome_image(name: str = "User") -> str:
     draw.rectangle([(0, 440), (W, H)], fill=(15, 20, 60))
     draw.text((60, 455), "Send any photo or video to start editing!  •  /help for full guide",
               font=font_tag, fill=(140, 170, 240))
-    draw.text((W - 200, 455), "Made with ❤️ by KiraFx", font=font_tag, fill=(100, 130, 200))
+    draw.text((W - 200, 455), "ʙy KiraFx", font=font_tag, fill=(100, 130, 200))
 
     # KiraFx corner badge (top-right)
     draw.rounded_rectangle([(720, 30), (870, 68)], radius=12, fill=(60, 100, 220))
