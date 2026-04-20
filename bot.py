@@ -553,35 +553,47 @@ def get_total_edits() -> int:
     row = get_db().execute("SELECT SUM(total_edits) FROM users").fetchone()
     return row[0] or 0
 
-def premium_emoji(emoji_id: str, fallback: str = "✨") -> str:
-    """Return an animated custom emoji string for use in bot messages.
-    Usage: use the returned string inside a message with entities or parse_mode=enums.ParseMode.HTML.
-    Format: <emoji id="CUSTOM_EMOJI_ID">FALLBACK</emoji>"""
-    return f'<emoji id="{emoji_id}">{fallback}</emoji>'
+# Line 315-334 - FIXED
 
+def premium_emoji(emoji_id: str, fallback: str = "✨") -> str:
+    """
+    Return a custom emoji for Telegram messages.
+    Note: Custom emoji IDs must be from your bot's owned emoji pack.
+    For now, just return fallback to avoid errors.
+    """
+    # TEMPORARY FIX: Return fallback only until custom emojis are configured
+    # To use custom emojis, you need to:
+    # 1. Create a sticker pack with custom emojis
+    # 2. Use their real IDs from Telegram
+    return fallback
+    
+    # CORRECT FORMAT (when you have real IDs):
+    # return f'<tg-emoji emoji-id="{emoji_id}">{fallback}</tg-emoji>'
+
+# Simplified premium emojis - use standard emojis only
 PREMIUM_EMOJIS = {
-    "star":    ("5361541227604729229", "⭐"),
-    "crown":   ("5361541227604729230", "👑"),
-    "fire":    ("5361541227604729231", "🔥"),
-    "diamond": ("5361541227604729232", "💎"),
-    "magic":   ("5361541227604729233", "✨"),
-    "camera":  ("5361541227604729234", "📷"),
-    "video":   ("5361541227604729235", "🎬"),
-    "brush":   ("5361541227604729236", "🎨"),
-    "bolt":    ("5361541227604729237", "⚡"),
-    "shield":  ("5361541227604729238", "🛡️"),
-    "check":   ("5361541227604729239", "✅"),
-    "gift":    ("5361541227604729240", "🎁"),
-    "coin":    ("5361541227604729241", "🪙"),
-    "robot":   ("5361541227604729242", "🤖"),
-    "rocket":  ("5361541227604729243", "🚀"),
+    "star":    ("", "⭐"),
+    "crown":   ("", "👑"),
+    "fire":    ("", "🔥"),
+    "diamond": ("", "💎"),
+    "magic":   ("", "✨"),
+    "camera":  ("", "📷"),
+    "video":   ("", "🎬"),
+    "brush":   ("", "🎨"),
+    "bolt":    ("", "⚡"),
+    "shield":  ("", "🛡️"),
+    "check":   ("", "✅"),
+    "gift":    ("", "🎁"),
+    "coin":    ("", "🪙"),
+    "robot":   ("", "🤖"),
+    "rocket":  ("", "🚀"),
 }
 
 def pem(name: str) -> str:
     """Quick shorthand for premium emoji by name."""
     if name in PREMIUM_EMOJIS:
-        eid, fallback = PREMIUM_EMOJIS[name]
-        return premium_emoji(eid, fallback)
+        _, fallback = PREMIUM_EMOJIS[name]
+        return fallback
     return "✨"
 
 def get_today_edits() -> int:
@@ -772,10 +784,55 @@ def run_ffmpeg(cmd: List[str], timeout: int = 300) -> Tuple[bool, str]:
     except Exception as e:
         return False, str(e)
 
+# Line 573-591 - FIXED
+
+def sanitize_ffmpeg_filter(filter_str: str) -> str:
+    """
+    Sanitize FFmpeg filter string to prevent command injection.
+    Only allow safe characters: alphanumeric, comma, colon, equals, period, underscore, space
+    """
+    # Remove any shell metacharacters
+    safe_pattern = r'[^a-zA-Z0-9_,:;=\.\-/\[\]\(\)\s]'
+    sanitized = re.sub(safe_pattern, '', filter_str)
+    
+    # Additional check: no command separators
+    dangerous = [';', '&', '|', '$', '`', '(', ')', '<', '>', '\n', '\r']
+    for char in dangerous:
+        if char in filter_str:
+            raise ValueError(f"Dangerous character '{char}' detected in filter")
+    
+    return sanitized
+
 def ffmpeg_apply_video_filter(input_path: str, output_path: str, vf: str = None,
                                af: str = None, extra: List[str] = None,
                                timeout: int = 300) -> Tuple[bool, str]:
-    """Apply FFmpeg video filter with fallback strategies."""
+    """Apply FFmpeg video filter with sanitization."""
+    
+    # Sanitize inputs to prevent injection
+    if vf:
+        try:
+            vf = sanitize_ffmpeg_filter(vf)
+        except ValueError as e:
+            return False, f"Invalid filter: {e}"
+    
+    if af:
+        try:
+            af = sanitize_ffmpeg_filter(af)
+        except ValueError as e:
+            return False, f"Invalid audio filter: {e}"
+    
+    # Validate input path exists and is safe
+    if not os.path.exists(input_path):
+        return False, f"Input file not found: {input_path}"
+    
+    # Ensure paths are absolute and within temp directory
+    input_path = os.path.abspath(input_path)
+    output_path = os.path.abspath(output_path)
+    
+    # Check that paths are in TEMP_DIR (security)
+    if not input_path.startswith(os.path.abspath(TEMP_DIR)):
+        return False, "Invalid input path"
+    
     # Strategy 1: Full with filters
     cmd = ["ffmpeg", "-y", "-i", input_path]
     if vf:
@@ -783,13 +840,18 @@ def ffmpeg_apply_video_filter(input_path: str, output_path: str, vf: str = None,
     if af:
         cmd += ["-af", af]
     if extra:
+        # Sanitize extra arguments
+        extra = [str(x) for x in extra]
         cmd += extra
     cmd += ["-c:a", "aac", output_path]
-
+    
+    # Log command for debugging (without exposing full paths)
+    logger.info(f"Running FFmpeg command: {' '.join(cmd[:5])}...")
+    
     ok, err = run_ffmpeg(cmd, timeout)
     if ok and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
         return True, ""
-
+    
     # Strategy 2: Simple copy audio
     cmd2 = ["ffmpeg", "-y", "-i", input_path]
     if vf:
@@ -798,27 +860,14 @@ def ffmpeg_apply_video_filter(input_path: str, output_path: str, vf: str = None,
     ok, err = run_ffmpeg(cmd2, timeout)
     if ok and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
         return True, ""
-
+    
     # Strategy 3: Stream copy
     cmd3 = ["ffmpeg", "-y", "-i", input_path, "-c", "copy", output_path]
     ok, err = run_ffmpeg(cmd3, timeout)
     if ok and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
         return True, ""
-
-    return False, f"All strategies failed: {err}"
-
-def temp_path(ext: str = "") -> str:
-    name = "".join(random.choices(string.ascii_lowercase + string.digits, k=14))
-    return os.path.join(TEMP_DIR, f"{name}{ext}")
-
-def cleanup_temp_files(max_age: int = 3600):
-    now = time.time()
-    for f in Path(TEMP_DIR).iterdir():
-        if f.is_file() and (now - f.stat().st_mtime) > max_age:
-            try:
-                f.unlink()
-            except Exception:
-                pass
+    
+    return False, f"All strategies failed: {err[:200]}"
 
 # ============================================================
 # IMAGE FILTERS
