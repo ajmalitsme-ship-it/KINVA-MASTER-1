@@ -4228,3 +4228,1742 @@ async def cmd_deploy(client, message: Message):
              InlineKeyboardButton("🏠 Home", callback_data="menu_main")],
         ])
   )
+# ============================================================
+# FIXED MEDIA HANDLERS
+# ============================================================
+
+async def handle_media_for_edit(client, message: Message, file_path: str, media_type: str):
+    """Generic handler after downloading a media file."""
+    user_id = message.from_user.id
+    mode = get_session(user_id, "mode")
+
+    try:
+        if media_type == "photo":
+            if mode == "aiedit":
+                ai_filters = get_session(user_id, "ai_filters", [])
+                if ai_filters:
+                    await apply_image_filters_sequence(client, message, file_path, ai_filters)
+                    clear_session(user_id)
+                    return
+            
+            # Check if in timeline mode
+            if get_session(user_id, "timeline_mode"):
+                tl = get_timeline(user_id)
+                save_timeline(user_id, file_path, "image", tl.get("steps", []))
+                clear_session(user_id, "timeline_mode")
+                await message.reply(
+                    "📊 **Timeline Editor — Image Loaded!**\n\n"
+                    "Now add filters step by step:",
+                    reply_markup=timeline_keyboard(user_id)
+                )
+                return
+            
+            set_session(user_id, "image_path", file_path)
+            clear_session(user_id, "mode")
+            await message.reply(
+                "📷 **Photo Received!**\n\n"
+                "Choose a filter category to apply:",
+                reply_markup=image_category_keyboard()
+            )
+
+        elif media_type == "video":
+            if mode == "compress":
+                set_session(user_id, "video_path", file_path)
+                clear_session(user_id, "mode")
+                await message.reply(
+                    "🗜️ **Choose Compression Quality:**\n\n"
+                    "⭐ = Premium only\n"
+                    "Premium users get 1440p, 2K, and 4K compression!",
+                    reply_markup=compress_keyboard()
+                )
+            elif get_session(user_id, "timeline_mode"):
+                tl = get_timeline(user_id)
+                save_timeline(user_id, file_path, "video", tl.get("steps", []))
+                clear_session(user_id, "timeline_mode")
+                await message.reply(
+                    "📊 **Timeline Editor — Video Loaded!**\n\n"
+                    "Now add effects step by step:",
+                    reply_markup=timeline_keyboard(user_id)
+                )
+            else:
+                set_session(user_id, "video_path", file_path)
+                clear_session(user_id, "mode")
+                await message.reply(
+                    "🎬 **Video Received!**\n\n"
+                    "Choose an effect category to apply:",
+                    reply_markup=video_category_keyboard()
+                )
+
+        elif media_type in ("document", "audio"):
+            if mode == "rename":
+                original_name = getattr(message.document or message.audio, "file_name", "file")
+                set_session(user_id, "rename_path", file_path)
+                set_session(user_id, "rename_original", original_name)
+                clear_session(user_id, "mode")
+                await message.reply(
+                    f"✏️ **Rename File**\n\n"
+                    f"Original name: `{original_name}`\n\n"
+                    f"Type the **new filename** (with extension):\n"
+                    f"Example: `my_document.pdf`",
+                    reply_markup=cancel_keyboard()
+                )
+            elif mode == "metadata":
+                set_session(user_id, "metadata_path", file_path)
+                clear_session(user_id, "mode")
+                await show_metadata_menu(client, message)
+            else:
+                original_name = getattr(message.document or message.audio, "file_name", "file")
+                set_session(user_id, "rename_path", file_path)
+                set_session(user_id, "rename_original", original_name)
+                await message.reply(
+                    f"📁 **File Received!**\n\n"
+                    f"File: `{original_name}`\n\n"
+                    f"What would you like to do?",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("✏️ Rename", callback_data="do_rename"),
+                         InlineKeyboardButton("📝 Edit Metadata", callback_data="do_metadata")],
+                        [InlineKeyboardButton("❌ Cancel", callback_data="cancel")],
+                    ])
+                )
+    except Exception as e:
+        logger.error(f"Error in handle_media_for_edit: {e}")
+        await message.reply(f"❌ Error processing media: {str(e)[:200]}")
+
+async def show_metadata_menu(client, message: Message):
+    """Show metadata editing menu."""
+    await message.reply(
+        "📝 **Metadata Editor**\n\n"
+        "Send metadata in this format:\n"
+        "`title=My Title | artist=Artist | album=Album | year=2024`\n\n"
+        "**Available fields:**\n"
+        "title, artist, album, year, comment, description, genre, language, encoder, track, disc, composer, publisher, copyright\n\n"
+        "Example:\n"
+        "`title=My Song | artist=John Doe | year=2024 | genre=Pop`",
+        reply_markup=cancel_keyboard()
+    )
+
+async def apply_image_filters_sequence(client, message: Message, file_path: str, filters_list: List[str], user_id: int = None):
+    """Apply multiple filters in sequence."""
+    if user_id is None:
+        user_id = message.from_user.id
+    
+    status_msg = await message.reply(f"⏳ Applying {len(filters_list)} filter(s)...")
+    
+    try:
+        loop = asyncio.get_running_loop()
+        img = await loop.run_in_executor(executor, lambda: Image.open(file_path).convert("RGB"))
+
+        for f in filters_list:
+            img = await loop.run_in_executor(executor, lambda fi=f, im=img: apply_image_filter(im, fi))
+
+        # Add watermark for free users
+        wm_text = get_setting("watermark_text", "KiraFx")
+        if wm_text and not is_premium(user_id):
+            img = await loop.run_in_executor(executor, lambda: add_watermark(img, wm_text))
+
+        out_path = temp_path(".jpg")
+        img.save(out_path, "JPEG", quality=92)
+        
+        filter_names = " → ".join(IMAGE_FILTERS.get(f, f) for f in filters_list)
+        caption = f"✅ **Applied:** {filter_names}"
+        if is_premium(user_id):
+            caption += "\n\n⭐ **Premium:** No watermark applied!"
+        
+        await client.send_photo(
+            message.chat.id,
+            photo=out_path,
+            caption=caption,
+            reply_markup=after_edit_keyboard()
+        )
+        
+        increment_edits(user_id)
+        log_edit(user_id, "image_sequence", filter_names)
+        await status_msg.delete()
+        os.remove(out_path)
+
+        # Ad injection for free users
+        if should_show_ad(user_id):
+            await client.send_message(message.chat.id, get_random_ad())
+
+    except Exception as e:
+        logger.error(f"Filter apply error: {e}\n{traceback.format_exc()}")
+        await status_msg.edit_text(f"❌ Error applying filters: {str(e)[:200]}")
+
+@app.on_message(filters.photo)
+@require_registered
+async def handle_photo(client, message: Message):
+    """Handle incoming photos."""
+    user_id = message.from_user.id
+    
+    # Skip if in aiedit_prompt mode
+    if get_session(user_id, "mode") == "aiedit_prompt":
+        return
+    
+    if not can_edit(user_id):
+        limit = get_setting("free_edits_per_day", str(FREE_EDITS_PER_DAY))
+        await message.reply(
+            f"❌ **Daily Limit Reached!**\n\n"
+            f"Free users get {limit} edits per day.\n\n"
+            f"⭐ Upgrade to Premium for unlimited edits!\n"
+            f"🎁 Or use /trial for a 7-day free trial!",
+            reply_markup=premium_plans_keyboard()
+        )
+        return
+    
+    status_msg = await message.reply("⬇️ Downloading photo...")
+    
+    try:
+        file_path = await message.download(file_name=temp_path(".jpg"))
+        await status_msg.delete()
+        await handle_media_for_edit(client, message, file_path, "photo")
+    except Exception as e:
+        await status_msg.edit_text(f"❌ Download error: {str(e)[:200]}")
+
+@app.on_message(filters.video)
+@require_registered
+async def handle_video(client, message: Message):
+    """Handle incoming videos."""
+    user_id = message.from_user.id
+    
+    if not can_edit(user_id):
+        limit = get_setting("free_edits_per_day", str(FREE_EDITS_PER_DAY))
+        await message.reply(
+            f"❌ **Daily Limit Reached!**\n\n"
+            f"Free users get {limit} edits per day.\n\n"
+            f"⭐ Upgrade to Premium for unlimited edits!",
+            reply_markup=premium_plans_keyboard()
+        )
+        return
+    
+    status_msg = await message.reply("⬇️ Downloading video... Please wait.")
+    
+    for attempt in range(3):
+        try:
+            file_path = await message.download(file_name=temp_path(".mp4"))
+            if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                break
+        except Exception as e:
+            if attempt == 2:
+                await status_msg.edit_text(f"❌ Download failed after 3 attempts: {str(e)[:200]}")
+                return
+            await asyncio.sleep(2)
+    
+    await status_msg.delete()
+    
+    if not validate_video(file_path):
+        await message.reply("❌ Invalid or corrupted video file. Please send a valid video.")
+        return
+    
+    await handle_media_for_edit(client, message, file_path, "video")
+
+@app.on_message(filters.document)
+@require_registered
+async def handle_document(client, message: Message):
+    """Handle incoming documents."""
+    doc = message.document
+    ext = Path(doc.file_name or "file").suffix.lower() if doc.file_name else ""
+    video_exts = [".mp4", ".avi", ".mkv", ".mov", ".webm", ".flv", ".wmv", ".3gp", ".m4v"]
+    img_exts = [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff"]
+    
+    status_msg = await message.reply("⬇️ Downloading file...")
+    
+    try:
+        file_path = await message.download(file_name=temp_path(ext or ".bin"))
+        await status_msg.delete()
+        
+        if ext in video_exts:
+            await handle_media_for_edit(client, message, file_path, "video")
+        elif ext in img_exts:
+            await handle_media_for_edit(client, message, file_path, "photo")
+        else:
+            await handle_media_for_edit(client, message, file_path, "document")
+    except Exception as e:
+        await status_msg.edit_text(f"❌ Download error: {str(e)[:200]}")
+
+@app.on_message(filters.audio)
+@require_registered
+async def handle_audio(client, message: Message):
+    """Handle incoming audio files."""
+    status_msg = await message.reply("⬇️ Downloading audio...")
+    
+    try:
+        file_path = await message.download(file_name=temp_path(".mp3"))
+        await status_msg.delete()
+        await handle_media_for_edit(client, message, file_path, "audio")
+    except Exception as e:
+        await status_msg.edit_text(f"❌ Download error: {str(e)[:200]}")
+
+# ============================================================
+# FIXED TEXT MESSAGE HANDLER
+# ============================================================
+
+ALL_COMMANDS = [
+    "start", "help", "admin", "ban", "unban", "addprem", "rmprem", "addadmin",
+    "rmadmin", "listadmins", "userinfo", "addcoins", "rmcoins", "broadcast",
+    "setwelcome", "setwatermark", "setfree", "setads", "maintenance", "backup",
+    "cleanup", "logs", "export", "addcmd", "delcmd", "togglecmd", "listcmds",
+    "addautoreply", "delautoreply", "listautoreplies", "stats", "resetedits",
+    "premlist", "banlist", "note", "notes", "delnote", "runcode",
+    "premium", "trial", "status", "profile", "refer", "rename", "metadata",
+    "compress", "logo", "txt2img", "txt2vid", "aiedit", "ping", "alive",
+    "info", "queue", "timeline", "deploy", "warnuser", "warnlist", "clearwarn",
+    "muteuser", "unmuteuser", "mutelist", "topusers", "diskusage", "dbstats",
+    "resetuser", "getuser", "coinleader", "activeusers", "setmaxfile",
+]
+
+@app.on_message(filters.text & ~filters.command(ALL_COMMANDS))
+@require_registered
+async def handle_text(client, message: Message):
+    """Handle text messages for multi-step flows and auto-replies."""
+    user_id = message.from_user.id
+    text = message.text.strip()
+
+    # Auto-replies check
+    try:
+        auto_replies = get_db().execute("SELECT * FROM auto_replies WHERE is_enabled=1").fetchall()
+        for rule in auto_replies:
+            trigger = rule["trigger"]
+            match_type = rule["match_type"]
+            matched = False
+            
+            if match_type == "exact" and text.lower() == trigger.lower():
+                matched = True
+            elif match_type == "contains" and trigger.lower() in text.lower():
+                matched = True
+            elif match_type == "startswith" and text.lower().startswith(trigger.lower()):
+                matched = True
+            
+            if matched:
+                if rule["response_type"] == "text":
+                    await message.reply(rule["response"])
+                return
+    except Exception as e:
+        logger.error(f"Auto-reply error: {e}")
+
+    # Custom commands check
+    if text.startswith("/"):
+        cmd = text.split()[0].lstrip("/").lower()
+        try:
+            row = get_db().execute(
+                "SELECT * FROM custom_commands WHERE command=? AND is_enabled=1", (cmd,)
+            ).fetchone()
+            if row:
+                get_db().execute("UPDATE custom_commands SET use_count=use_count+1 WHERE id=?", (row["id"],))
+                get_db().commit()
+                
+                if row["response_type"] == "text":
+                    await message.reply(row["response"])
+                elif row["response_type"] == "code":
+                    await message.reply(f"```\n{row['response']}\n```")
+                elif row["response_type"] == "photo":
+                    await client.send_photo(message.chat.id, row["media_id"])
+                elif row["response_type"] == "video":
+                    await client.send_video(message.chat.id, row["media_id"])
+                elif row["response_type"] == "audio":
+                    await client.send_audio(message.chat.id, row["media_id"])
+                elif row["response_type"] == "document":
+                    await client.send_document(message.chat.id, row["media_id"])
+                return
+        except Exception as e:
+            logger.error(f"Custom command error: {e}")
+
+    # Mode-based flows
+    mode = get_session(user_id, "mode")
+
+    if mode == "aiedit_prompt":
+        prompt = text.lower()
+        clear_session(user_id, "mode")
+        await handle_aiedit_prompt(client, message, user_id, prompt)
+        return
+
+    if mode == "rename":
+        rename_path = get_session(user_id, "rename_path")
+        if rename_path and os.path.exists(rename_path):
+            new_name = text.strip()
+            original = get_session(user_id, "rename_original", "file")
+            
+            # Validate filename
+            if not new_name or '/' in new_name or '\\' in new_name:
+                await message.reply("❌ Invalid filename. Use only letters, numbers, dots, and underscores.")
+                return
+            
+            status_msg = await message.reply(f"✏️ Renaming to `{new_name}`...")
+            try:
+                new_path = os.path.join(TEMP_DIR, new_name)
+                shutil.copy2(rename_path, new_path)
+                
+                await client.send_document(
+                    message.chat.id,
+                    document=new_path,
+                    file_name=new_name,
+                    caption=f"✅ **Renamed!**\n\nOriginal: `{original}`\nNew name: `{new_name}`",
+                )
+                log_rename(user_id, original, new_name)
+                await status_msg.delete()
+                os.remove(new_path)
+                os.remove(rename_path)
+            except Exception as e:
+                await status_msg.edit_text(f"❌ Rename error: {str(e)[:200]}")
+            clear_session(user_id)
+        return
+
+    if mode == "metadata":
+        meta_path = get_session(user_id, "metadata_path")
+        if meta_path and os.path.exists(meta_path):
+            meta = {}
+            for part in text.split("|"):
+                part = part.strip()
+                if "=" in part:
+                    k, _, v = part.partition("=")
+                    meta[k.strip().lower()] = v.strip()
+            
+            if not meta:
+                await message.reply("❌ Invalid format. Use: `title=Value | artist=Name`")
+                return
+            
+            status_msg = await message.reply("📝 Applying metadata...")
+            try:
+                out_path = temp_path(Path(meta_path).suffix)
+                cmd = ["ffmpeg", "-y", "-i", meta_path]
+                for k, v in meta.items():
+                    cmd += ["-metadata", f"{k}={v}"]
+                cmd += ["-c", "copy", out_path]
+                
+                ok, err = run_ffmpeg(cmd)
+                if ok and os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+                    await client.send_document(
+                        message.chat.id,
+                        document=out_path,
+                        caption=f"✅ **Metadata Updated!**\n\n" + "\n".join(f"• {k}: {v}" for k, v in meta.items())
+                    )
+                    await status_msg.delete()
+                    os.remove(out_path)
+                    os.remove(meta_path)
+                else:
+                    await status_msg.edit_text(f"❌ Metadata edit failed: {err[:200]}")
+            except Exception as e:
+                await status_msg.edit_text(f"❌ Error: {str(e)[:200]}")
+            clear_session(user_id)
+        return
+
+    if mode == "logo":
+        set_session(user_id, "logo_text", text[:20])
+        clear_session(user_id, "mode")
+        await message.reply(
+            f"🎨 Choose a **style** for: **{text[:20]}**\n\n"
+            f"Styles: gradient, gold, neon, fire, ice, purple, pink, rainbow",
+            reply_markup=logo_style_keyboard()
+        )
+        return
+
+    if mode == "txt2img":
+        clear_session(user_id, "mode")
+        await process_txt2img(client, message, user_id, text)
+        return
+
+    if mode == "txt2vid":
+        clear_session(user_id, "mode")
+        await process_txt2vid(client, message, user_id, text)
+        return
+
+    if mode == "aiedit":
+        clear_session(user_id, "mode")
+        await message.reply(
+            "🤖 Now send the **image** you want to edit with AI filters.\n\n"
+            "The AI will automatically apply the suggested filters!",
+            reply_markup=cancel_keyboard()
+        )
+        return
+
+    # Admin broadcast input
+    if get_session(user_id, "admin_broadcast_input"):
+        clear_session(user_id, "admin_broadcast_input")
+        users = get_all_users()
+        sent = 0
+        failed = 0
+        
+        status_msg = await message.reply(f"📢 Broadcasting to {len(users)} users...")
+        
+        for ur in users:
+            try:
+                await client.send_message(ur["user_id"], text)
+                sent += 1
+                if sent % 50 == 0:
+                    await status_msg.edit_text(f"📢 Sending... {sent}/{len(users)}")
+                await asyncio.sleep(0.05)
+            except FloodWait as e:
+                await asyncio.sleep(e.value)
+            except Exception:
+                failed += 1
+        
+        try:
+            get_db().execute(
+                "INSERT INTO broadcast_logs (admin_id, message_text, sent_count, failed_count) VALUES (?, ?, ?, ?)",
+                (user_id, text[:500], sent, failed)
+            )
+            get_db().commit()
+        except Exception:
+            pass
+        
+        await status_msg.edit_text(f"✅ Broadcast done!\nSent: {sent} | Failed: {failed}")
+        return
+
+    # Admin settings inputs
+    admin_setting = get_session(user_id, "admin_setting_input")
+    if admin_setting and is_admin(user_id):
+        clear_session(user_id, "admin_setting_input")
+        set_setting(admin_setting, text.strip())
+        await message.reply(f"✅ Setting `{admin_setting}` updated to: `{text.strip()}`")
+        return
+
+# ============================================================
+# FIXED AI GENERATION FUNCTIONS
+# ============================================================
+
+async def process_txt2img(client, message: Message, user_id: int, prompt: str):
+    """Process text to image generation."""
+    status_msg = await message.reply(f"🎨 Generating image for: *{prompt[:50]}*...")
+    
+    try:
+        # Check for style prefix
+        style = "gradient"
+        for s in AI_TEXT_IMAGE_STYLES.keys():
+            if prompt.lower().startswith(s + ":"):
+                style = s
+                prompt = prompt[len(s)+1:].strip()
+                break
+        
+        loop = asyncio.get_running_loop()
+        img = await loop.run_in_executor(executor, lambda: text_to_image(prompt, style))
+        
+        # Add watermark for free users
+        wm_text = get_setting("watermark_text", "KiraFx")
+        if wm_text and not is_premium(user_id):
+            img = await loop.run_in_executor(executor, lambda: add_watermark(img, wm_text))
+        
+        bio = BytesIO()
+        bio.name = "generated.png"
+        img.save(bio, "PNG")
+        bio.seek(0)
+        
+        caption = f"🖼️ **Generated!**\n\nPrompt: *{prompt[:100]}*\nStyle: {style.upper()}"
+        if not is_premium(user_id):
+            caption += "\n\nℹ️ Free users have watermark. Upgrade to Premium for no watermark!"
+        
+        await client.send_photo(
+            message.chat.id,
+            photo=bio,
+            caption=caption,
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Generate Another", callback_data="ai_txt2img"),
+                 InlineKeyboardButton("🏠 Home", callback_data="menu_main")],
+            ])
+        )
+        await status_msg.delete()
+        increment_edits(user_id)
+        log_edit(user_id, "ai_txt2img", prompt[:50])
+        
+    except Exception as e:
+        logger.error(f"txt2img error: {e}")
+        await status_msg.edit_text(f"❌ Generation error: {str(e)[:200]}")
+
+async def process_txt2vid(client, message: Message, user_id: int, prompt: str):
+    """Process text to video generation."""
+    status_msg = await message.reply(f"🎬 Generating video for: *{prompt[:50]}*...")
+    
+    try:
+        styles = list(AI_TEXT_IMAGE_STYLES.keys())
+        frames = []
+        loop = asyncio.get_running_loop()
+        
+        # Generate frames (fewer for free users)
+        frame_count = 24 if is_premium(user_id) else 12
+        
+        for i in range(frame_count):
+            ratio = i / frame_count
+            style = styles[int(ratio * len(styles)) % len(styles)]
+            frame = await loop.run_in_executor(executor, lambda s=style: text_to_image(f"{prompt}", s))
+            frame_path = temp_path(".jpg")
+            frame.save(frame_path, "JPEG", quality=85)
+            frames.append(frame_path)
+        
+        # Create video from frames
+        list_file = temp_path(".txt")
+        out_path = temp_path(".mp4")
+        
+        with open(list_file, "w") as lf:
+            for fp in frames:
+                lf.write(f"file '{fp}'\n")
+                lf.write("duration 0.125\n")
+        
+        fps = 8 if is_premium(user_id) else 4
+        cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0",
+               "-i", list_file, "-vf", f"fps={fps},scale=800:600", "-pix_fmt", "yuv420p", out_path]
+        
+        ok, err = run_ffmpeg(cmd, timeout=120)
+        
+        if ok and os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+            caption = f"🎬 **Generated Video!**\n\nPrompt: *{prompt[:100]}*"
+            if not is_premium(user_id):
+                caption += "\n\nℹ️ Free users get shorter videos. Upgrade to Premium for longer videos!"
+            
+            await client.send_video(
+                message.chat.id,
+                video=out_path,
+                caption=caption,
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔄 Generate Another", callback_data="ai_txt2vid"),
+                     InlineKeyboardButton("🏠 Home", callback_data="menu_main")],
+                ])
+            )
+            await status_msg.delete()
+            increment_edits(user_id)
+            os.remove(out_path)
+        else:
+            # Fallback: send single image
+            img = await loop.run_in_executor(executor, lambda: text_to_image(prompt, "gradient"))
+            bio = BytesIO()
+            bio.name = "preview.png"
+            img.save(bio, "PNG")
+            bio.seek(0)
+            await client.send_photo(
+                message.chat.id, 
+                photo=bio,
+                caption=f"🖼️ Video preview (generation failed): *{prompt[:100]}*"
+            )
+            await status_msg.delete()
+        
+        # Cleanup
+        for fp in frames:
+            try:
+                os.remove(fp)
+            except Exception:
+                pass
+        if os.path.exists(list_file):
+            os.remove(list_file)
+            
+    except Exception as e:
+        logger.error(f"txt2vid error: {e}\n{traceback.format_exc()}")
+        await status_msg.edit_text(f"❌ Generation error: {str(e)[:200]}")
+
+# ============================================================
+# FIXED CALLBACK QUERY HANDLER (Main Entry Point)
+# ============================================================
+
+@app.on_callback_query()
+async def handle_callback(client, query: CallbackQuery):
+    """Main callback handler - routes to appropriate sub-handler."""
+    user = query.from_user
+    data = query.data
+    user_id = user.id
+
+    # Register user if not exists
+    register_user(user)
+    
+    # Check ban
+    if is_banned(user_id):
+        await query.answer("🚫 You are banned from this bot.", show_alert=True)
+        return
+
+    try:
+        await _handle_callback_inner(client, query, user_id, data)
+    except Exception as e:
+        logger.error(f"Callback error [{data}]: {e}\n{traceback.format_exc()}")
+        try:
+            await query.answer("❌ An error occurred. Please try again.", show_alert=True)
+        except Exception:
+            pass
+
+    try:
+        await query.answer()
+    except Exception:
+        pass
+
+# ============================================================
+# FIXED CALLBACK QUERY INNER HANDLER (Due to length, continues in Part 7)
+# ============================================================
+# (The inner callback handler will be in Part 7 due to its large size)
+# ============================================================
+# FIXED CALLBACK QUERY INNER HANDLER
+# ============================================================
+
+async def _handle_callback_inner(client, query: CallbackQuery, user_id: int, data: str):
+    """Inner callback handler with all logic."""
+    msg = query.message
+
+    # ── Cancel ────────────────────────────────────────────────
+    if data == "cancel":
+        clear_session(user_id)
+        await msg.edit_text(
+            f"❌ **Cancelled**\n\nWhat would you like to do?",
+            reply_markup=main_menu_keyboard(user_id)
+        )
+        return
+
+    # ── Contact Admin ─────────────────────────────────────────
+    if data == "contact_admin":
+        support = get_setting("support_username", "KiraFxSupport")
+        await query.answer(f"Contact: @{support}", show_alert=True)
+        return
+
+    # ── Main Menu Navigation ──────────────────────────────────
+    if data == "menu_main":
+        await msg.edit_text(
+            f"🎬 **{BOT_NAME}**\n\nChoose what you want to do:",
+            reply_markup=main_menu_keyboard(user_id)
+        )
+        return
+
+    elif data == "menu_image":
+        await msg.edit_text(
+            "📷 **Image Filters**\n\nChoose a filter category:",
+            reply_markup=image_category_keyboard()
+        )
+        return
+
+    elif data == "menu_video":
+        await msg.edit_text(
+            "🎬 **Video Effects**\n\nChoose an effect category:",
+            reply_markup=video_category_keyboard()
+        )
+        return
+
+    elif data == "menu_timeline":
+        tl = get_timeline(user_id)
+        steps_count = len(tl.get("steps", []))
+        has_media = bool(tl.get("media_path") and os.path.exists(tl.get("media_path") or ""))
+        status = f"📂 Media loaded | {steps_count} step(s)" if has_media else "📭 Send media to start"
+        await msg.edit_text(
+            f"📊 **Timeline Editor**\n\n{status}\n\nLayer multiple effects, then export the final result.",
+            reply_markup=timeline_keyboard(user_id)
+        )
+        return
+
+    elif data == "menu_compress":
+        await msg.edit_text(
+            "🗜️ **Video Compression**\n\nSend a video first, then choose quality.\n⭐ = Premium only\n\nPremium users get 1440p, 2K, and 4K compression!",
+            reply_markup=compress_keyboard()
+        )
+        return
+
+    elif data == "menu_rename":
+        set_session(user_id, "mode", "rename")
+        await msg.edit_text(
+            "✏️ **Rename File**\n\nSend the file you want to rename.",
+            reply_markup=cancel_keyboard()
+        )
+        return
+
+    elif data == "menu_metadata":
+        set_session(user_id, "mode", "metadata")
+        await msg.edit_text(
+            "📝 **Metadata Editor**\n\nSend the media file to edit metadata.",
+            reply_markup=cancel_keyboard()
+        )
+        return
+
+    elif data == "menu_ai":
+        await msg.edit_text(
+            "🤖 **AI Generation**\n\nChoose what to generate:",
+            reply_markup=ai_gen_keyboard()
+        )
+        return
+
+    elif data == "menu_logo":
+        set_session(user_id, "mode", "logo")
+        await msg.edit_text(
+            "🎨 **Logo Maker**\n\nSend the text for your logo (max 20 characters):",
+            reply_markup=cancel_keyboard()
+        )
+        return
+
+    elif data == "menu_premium":
+        prem = is_premium(user_id)
+        row = get_user(user_id)
+        status_str = "⭐ **Active**" if prem else "🆓 **Free**"
+        until = str(row.get("premium_until", "N/A") or "N/A")[:10] if row else "N/A"
+        
+        plans_text = "\n".join(
+            f"{p['emoji']} **{p['label']}** — {p['price']}"
+            for p in PREMIUM_PLANS.values()
+        )
+        
+        await msg.edit_text(
+            f"⭐ **KiraFx Premium**\n\n"
+            f"**Your status:** {status_str}\n"
+            + (f"**Valid until:** {until}\n\n" if prem else "\n")
+            + plans_text
+            + "\n\n**Premium Benefits:**\n"
+            f"✅ Unlimited daily edits\n"
+            f"✅ No watermarks • No ads\n"
+            f"✅ Priority queue\n"
+            f"✅ 4K compression\n"
+            f"✅ Exclusive filters\n"
+            f"✅ Extended processing (600s)\n\n"
+            f"📩 Contact admin to purchase.\n"
+            f"🎁 Use /trial for 7 days free!",
+            reply_markup=premium_plans_keyboard()
+        )
+        return
+
+    elif data == "menu_profile":
+        row = get_user(user_id)
+        if row:
+            try:
+                card = make_profile_card(row, is_premium(user_id), is_admin(user_id))
+                bio = BytesIO()
+                bio.name = "profile.png"
+                card.save(bio, "PNG")
+                bio.seek(0)
+                await client.send_photo(
+                    msg.chat.id,
+                    photo=bio,
+                    caption=(
+                        f"👤 **{row['first_name']}**\n"
+                        f"Status: {'⭐ Premium' if is_premium(user_id) else '🆓 Free'}\n"
+                        f"Edits: {row['total_edits']} | Coins: 🪙{row['coins']}"
+                    ),
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("⭐ Premium", callback_data="menu_premium"),
+                         InlineKeyboardButton("🏠 Home", callback_data="menu_main")],
+                    ])
+                )
+                await msg.delete()
+            except Exception as e:
+                await msg.edit_text(
+                    f"👤 **{row['first_name']}**\n"
+                    f"Edits: {row['total_edits']} | Coins: 🪙{row['coins']}",
+                    reply_markup=back_main()
+                )
+        return
+
+    elif data == "menu_refer":
+        row = get_user(user_id)
+        try:
+            bot_info = await client.get_me()
+            link = f"https://t.me/{bot_info.username}?start={user_id}"
+        except Exception:
+            link = f"https://t.me/KiraFxBot?start={user_id}"
+        ref_days = get_setting("referral_premium_days", "3")
+        ref_coins = get_setting("referral_coins", "100")
+        await msg.edit_text(
+            f"🔗 **Refer & Earn**\n\n"
+            f"Your link: `{link}`\n\n"
+            f"**Per referral:**\n"
+            f"• ✅ {ref_days} days Premium\n"
+            f"• 🪙 {ref_coins} Coins\n\n"
+            f"**Your referrals:** {row['referral_count'] if row else 0}\n"
+            f"**Your coins:** 🪙 {row['coins'] if row else 0}\n\n"
+            f"Share your link and earn rewards every time someone joins!",
+            reply_markup=back_main()
+        )
+        return
+
+    elif data == "menu_help":
+        await msg.edit_text(
+            "📖 **Quick Help**\n\n"
+            "• Send a **photo** → choose filters\n"
+            "• Send a **video** → choose effects\n"
+            "• /timeline — layer multiple effects\n"
+            "• /compress — compress video (9 presets)\n"
+            "• /logo — generate a custom logo\n"
+            "• /txt2img — AI image generation\n"
+            "• /premium — view plans & trial\n"
+            "• /refer — earn free premium\n"
+            "• /help — full help guide\n\n"
+            f"📌 **Version:** {BOT_VERSION}",
+            reply_markup=back_main()
+        )
+        return
+
+    # ── Premium Plans ─────────────────────────────────────────
+    elif data.startswith("buyprem_"):
+        plan_key = data[8:]
+        plan = PREMIUM_PLANS.get(plan_key)
+        if not plan:
+            await query.answer("Unknown plan.", show_alert=True)
+            return
+        support = get_setting("support_username", "KiraFxSupport")
+        await msg.edit_text(
+            f"{plan['emoji']} **{plan['label']} Plan — {plan['price']}**\n\n"
+            f"**Duration:** {plan['days']} days\n"
+            f"**Price:** {plan['price']}\n\n"
+            f"**To purchase:**\n"
+            f"1. Contact @{support}\n"
+            f"2. Send payment proof\n"
+            f"3. Your premium will be activated!\n\n"
+            f"**Your User ID:** `{user_id}`",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton(f"📩 Contact @{support}", url=f"https://t.me/{support}")],
+                [InlineKeyboardButton("🎁 Free Trial Instead", callback_data="trial"),
+                 InlineKeyboardButton("🔙 Back", callback_data="menu_premium")],
+            ])
+        )
+        return
+
+    elif data == "trial":
+        row = get_user(user_id)
+        if not row:
+            await query.answer("Please /start first.", show_alert=True)
+            return
+        if row["trial_used"]:
+            await query.answer("❌ You've already used your free trial.", show_alert=True)
+            return
+        if is_premium(user_id):
+            await query.answer("✅ You already have premium!", show_alert=True)
+            return
+        trial_days = int(get_setting("trial_days", "7"))
+        add_premium(user_id, trial_days, "trial")
+        get_db().execute("UPDATE users SET trial_used=1 WHERE user_id=?", (user_id,))
+        get_db().commit()
+        await msg.edit_text(
+            f"🎉 **{trial_days}-Day Free Trial Activated!**\n\n"
+            f"✅ Unlimited edits\n"
+            f"✅ No watermarks\n"
+            f"✅ No ads\n"
+            f"✅ Priority queue\n"
+            f"✅ 4K compression unlocked\n\n"
+            f"Enjoy your premium experience! ⭐",
+            reply_markup=main_menu_keyboard(user_id)
+        )
+        return
+
+    # ── Image Filters ─────────────────────────────────────────
+    elif data.startswith("imgcat_"):
+        cat = data[7:]
+        await msg.edit_text(
+            f"📷 **{cat}**\n\nChoose a filter to apply:",
+            reply_markup=image_filter_keyboard(cat)
+        )
+        return
+
+    elif data.startswith("imgpage_"):
+        parts = data[8:].rsplit("_", 1)
+        cat = parts[0]
+        page = int(parts[1])
+        await msg.edit_text(
+            f"📷 **{cat}** (Page {page+1})\n\nChoose a filter:",
+            reply_markup=image_filter_keyboard(cat, page)
+        )
+        return
+
+    elif data.startswith("imgfilter_"):
+        filter_name = data[10:]
+        image_path = get_session(user_id, "image_path")
+        
+        if not image_path or not os.path.exists(image_path):
+            await query.answer("❌ No image found. Please send an image first!", show_alert=True)
+            return
+        
+        if filter_name in PREMIUM_IMAGE_FILTERS and not is_premium(user_id):
+            await query.answer("⭐ This filter requires Premium! Use /premium or /trial to upgrade.", show_alert=True)
+            return
+        
+        if not can_edit(user_id):
+            limit = get_setting("free_edits_per_day", str(FREE_EDITS_PER_DAY))
+            await query.answer(f"❌ Daily limit reached ({limit}/day). Upgrade to Premium!", show_alert=True)
+            return
+        
+        filter_label = IMAGE_FILTERS.get(filter_name, filter_name)
+        await msg.edit_text(f"⏳ Applying **{filter_label}**...")
+        
+        try:
+            loop = asyncio.get_running_loop()
+            result_img = await loop.run_in_executor(
+                executor,
+                lambda: apply_image_filter(Image.open(image_path).convert("RGB"), filter_name)
+            )
+            
+            wm_text = get_setting("watermark_text", "KiraFx")
+            if wm_text and not is_premium(user_id):
+                result_img = await loop.run_in_executor(
+                    executor, lambda: add_watermark(result_img, wm_text)
+                )
+            
+            out_path = temp_path(".jpg")
+            result_img.save(out_path, "JPEG", quality=92)
+            
+            caption = f"✅ **Filter Applied:** {filter_label}"
+            if is_premium(user_id):
+                caption += "\n\n⭐ **Premium:** No watermark applied!"
+            
+            await client.send_photo(
+                msg.chat.id,
+                photo=out_path,
+                caption=caption,
+                reply_markup=after_edit_keyboard()
+            )
+            increment_edits(user_id)
+            log_edit(user_id, "image", filter_name)
+            await msg.delete()
+            os.remove(out_path)
+            
+            if should_show_ad(user_id):
+                await client.send_message(msg.chat.id, get_random_ad())
+        except Exception as e:
+            logger.error(f"Image filter callback error: {e}\n{traceback.format_exc()}")
+            await msg.edit_text(f"❌ Error: {str(e)[:200]}")
+        return
+
+    # ── Video Effects ─────────────────────────────────────────
+    elif data.startswith("vidcat_"):
+        cat = data[7:]
+        await msg.edit_text(
+            f"🎬 **{cat}**\n\nChoose an effect:",
+            reply_markup=video_effect_keyboard(cat)
+        )
+        return
+
+    elif data.startswith("vidpage_"):
+        parts = data[8:].rsplit("_", 1)
+        cat = parts[0]
+        page = int(parts[1])
+        await msg.edit_text(
+            f"🎬 **{cat}** (Page {page+1})\n\nChoose an effect:",
+            reply_markup=video_effect_keyboard(cat, page)
+        )
+        return
+
+    elif data.startswith("videffect_"):
+        effect = data[10:]
+        video_path = get_session(user_id, "video_path")
+        
+        if not video_path or not os.path.exists(video_path):
+            await query.answer("❌ No video found. Please send a video first!", show_alert=True)
+            return
+        
+        if not can_edit(user_id):
+            limit = get_setting("free_edits_per_day", str(FREE_EDITS_PER_DAY))
+            await query.answer(f"❌ Daily limit reached ({limit}/day). Upgrade to Premium!", show_alert=True)
+            return
+        
+        timeout = 600 if is_premium(user_id) else 300
+        effect_label = VIDEO_EFFECTS.get(effect, effect)
+        await msg.edit_text(f"⏳ Applying **{effect_label}**... Please wait.")
+        
+        try:
+            ext = ".mp3" if effect == "extract_audio" else ".gif" if effect == "extract_gif" else ".mp4"
+            out_path = temp_path(ext)
+            loop = asyncio.get_running_loop()
+            
+            ok, err = await loop.run_in_executor(
+                executor,
+                lambda: apply_video_effect(video_path, effect, out_path)
+            )
+            
+            actual_out = out_path.replace(".mp4", ".mp3") if effect == "extract_audio" else \
+                         out_path.replace(".mp4", ".gif") if effect == "extract_gif" else out_path
+            
+            if not ok or not os.path.exists(actual_out) or os.path.getsize(actual_out) == 0:
+                await msg.edit_text(
+                    f"❌ Effect failed: {err[:200] if err else 'Empty output'}\n\nTry a different effect.",
+                    reply_markup=after_video_keyboard()
+                )
+                return
+            
+            caption = f"✅ **Effect:** {effect_label}"
+            
+            if ext == ".mp3":
+                await client.send_audio(msg.chat.id, audio=actual_out, caption=caption)
+            elif ext == ".gif":
+                await client.send_animation(msg.chat.id, animation=actual_out, caption=caption)
+            else:
+                size_mb = os.path.getsize(actual_out) / (1024 * 1024)
+                if size_mb < 50:
+                    await client.send_video(msg.chat.id, video=actual_out, caption=caption,
+                                            reply_markup=after_video_keyboard())
+                else:
+                    await client.send_document(msg.chat.id, document=actual_out, caption=caption,
+                                               reply_markup=after_video_keyboard())
+            
+            increment_edits(user_id)
+            log_edit(user_id, "video", effect)
+            await msg.delete()
+            os.remove(actual_out)
+            
+            if should_show_ad(user_id):
+                await client.send_message(msg.chat.id, get_random_ad())
+        except Exception as e:
+            logger.error(f"Video effect callback error: {e}\n{traceback.format_exc()}")
+            await msg.edit_text(f"❌ Error: {str(e)[:200]}")
+        return
+
+    # ── Compression ───────────────────────────────────────────
+    elif data.startswith("compress_"):
+        quality = data[9:]
+        
+        if quality in PREMIUM_COMPRESS and not is_premium(user_id):
+            await query.answer(f"⭐ {quality} compression is Premium only! Use /premium or /trial.", show_alert=True)
+            return
+        
+        video_path = get_session(user_id, "video_path")
+        if not video_path or not os.path.exists(video_path):
+            await query.answer("❌ No video found. Please send a video first!", show_alert=True)
+            return
+        
+        timeout = 600 if is_premium(user_id) else 300
+        await msg.edit_text(f"⏳ Compressing to **{quality}**... This may take a while.")
+        
+        try:
+            out_path = temp_path(".mp4")
+            loop = asyncio.get_running_loop()
+            ok, err = await loop.run_in_executor(
+                executor, lambda: compress_video(video_path, out_path, quality, timeout)
+            )
+            
+            if not ok or not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
+                await msg.edit_text(
+                    f"❌ Compression failed: {err[:200] if err else 'Empty output'}\n\nTry a lower quality.",
+                    reply_markup=compress_keyboard()
+                )
+                return
+            
+            orig_size = os.path.getsize(video_path) / (1024 * 1024)
+            new_size = os.path.getsize(out_path) / (1024 * 1024)
+            ratio = (1 - new_size / orig_size) * 100 if orig_size > 0 else 0
+            
+            caption = (
+                f"✅ **Compressed to {quality}**\n\n"
+                f"📦 Original: `{orig_size:.1f} MB`\n"
+                f"✂️ Compressed: `{new_size:.1f} MB`\n"
+                f"💾 Saved: `{ratio:.1f}%`"
+            )
+            
+            if new_size < 50:
+                await client.send_video(msg.chat.id, video=out_path, caption=caption)
+            else:
+                await client.send_document(msg.chat.id, document=out_path, caption=caption)
+            
+            increment_edits(user_id)
+            log_edit(user_id, "compress", quality)
+            await msg.delete()
+            os.remove(out_path)
+        except Exception as e:
+            await msg.edit_text(f"❌ Error: {str(e)[:200]}")
+        return
+
+    # ── Timeline Editor ───────────────────────────────────────
+    elif data == "tl_add_imgfilter":
+        await msg.edit_text(
+            "📷 **Timeline — Add Image Filter**\n\nChoose a filter category:",
+            reply_markup=image_category_keyboard()
+        )
+        set_session(user_id, "timeline_filter_mode", True)
+        return
+
+    elif data == "tl_add_videffect":
+        await msg.edit_text(
+            "🎬 **Timeline — Add Video Effect**\n\nChoose an effect category:",
+            reply_markup=video_category_keyboard()
+        )
+        set_session(user_id, "timeline_effect_mode", True)
+        return
+
+    elif data == "tl_add_special":
+        tl = get_timeline(user_id)
+        media_type = tl.get("media_type", "image")
+        if media_type == "image":
+            await msg.edit_text(
+                "✨ **Timeline — Add Special Effect**\n\nChoose a special filter:",
+                reply_markup=image_filter_keyboard("✨ Special")
+            )
+            set_session(user_id, "timeline_filter_mode", True)
+        else:
+            await msg.edit_text(
+                "✨ **Timeline — Add Transition**\n\nChoose a transition effect:",
+                reply_markup=video_effect_keyboard("🎭 Transitions")
+            )
+            set_session(user_id, "timeline_effect_mode", True)
+        return
+
+    elif data == "tl_add_speed":
+        tl = get_timeline(user_id)
+        media_type = tl.get("media_type", "image")
+        if media_type != "video":
+            await query.answer("⚡ Speed change applies to videos only.", show_alert=True)
+            return
+        await msg.edit_text(
+            "⚡ **Timeline — Change Speed**\n\nChoose speed multiplier:",
+            reply_markup=video_effect_keyboard("⚡ Speed")
+        )
+        set_session(user_id, "timeline_effect_mode", True)
+        return
+
+    elif data == "tl_undo":
+        removed = undo_timeline_step(user_id)
+        if removed:
+            tl = get_timeline(user_id)
+            await query.answer(f"↩️ Removed: {removed}", show_alert=False)
+            await msg.edit_text(
+                f"📊 **Timeline**\n\nRemoved: **{removed}**\n{len(tl['steps'])} step(s) remaining.",
+                reply_markup=timeline_keyboard(user_id)
+            )
+        else:
+            await query.answer("↩️ Nothing to undo.", show_alert=True)
+        return
+
+    elif data == "tl_view":
+        tl = get_timeline(user_id)
+        steps = tl.get("steps", [])
+        if not steps:
+            await query.answer("📋 No steps yet.", show_alert=True)
+        else:
+            text = "📋 **Timeline Steps:**\n\n"
+            for i, step in enumerate(steps, 1):
+                text += f"{i}. {step['step']}\n"
+            await msg.edit_text(text, reply_markup=timeline_keyboard(user_id))
+        return
+
+    elif data == "tl_clear":
+        clear_timeline(user_id)
+        await msg.edit_text(
+            "🗑️ **Timeline Cleared**\n\nSend a new photo or video to start again.",
+            reply_markup=main_menu_keyboard(user_id)
+        )
+        return
+
+    elif data == "tl_apply":
+        tl = get_timeline(user_id)
+        steps = tl.get("steps", [])
+        media_path = tl.get("media_path")
+        media_type = tl.get("media_type", "image")
+        
+        if not steps:
+            await query.answer("⚠️ No steps in timeline.", show_alert=True)
+            return
+        if not media_path or not os.path.exists(media_path):
+            await query.answer("❌ Media not found. Please send media again.", show_alert=True)
+            return
+        
+        filter_names = [s["step"] for s in steps]
+        await msg.edit_text(f"⏳ Applying {len(steps)} timeline step(s)...")
+        
+        if media_type == "image":
+            await apply_image_filters_sequence(client, msg, media_path, filter_names, user_id)
+        else:
+            # Apply video effects in sequence
+            current_path = media_path
+            loop = asyncio.get_running_loop()
+            
+            for i, step in enumerate(steps):
+                out_path = temp_path(".mp4")
+                ok, err = await loop.run_in_executor(
+                    executor, lambda s=step["step"], cp=current_path, op=out_path: apply_video_effect(cp, s, op)
+                )
+                if ok and os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+                    if current_path != media_path:
+                        try:
+                            os.remove(current_path)
+                        except Exception:
+                            pass
+                    current_path = out_path
+                else:
+                    break
+            
+            if os.path.exists(current_path) and os.path.getsize(current_path) > 0:
+                step_names = " → ".join(s["step"] for s in steps)
+                size_mb = os.path.getsize(current_path) / (1024*1024)
+                if size_mb < 50:
+                    await client.send_video(msg.chat.id, video=current_path,
+                                            caption=f"✅ **Timeline Applied!**\n\n{step_names}")
+                else:
+                    await client.send_document(msg.chat.id, document=current_path,
+                                               caption=f"✅ **Timeline Applied!**\n\n{step_names}")
+                increment_edits(user_id)
+                log_edit(user_id, "timeline", step_names)
+        await msg.delete()
+        return
+
+    elif data == "tl_export":
+        await query.answer("💾 Use ▶️ Apply All to export your timeline.", show_alert=True)
+        return
+
+    # ── Logo ──────────────────────────────────────────────────
+    elif data.startswith("logo_style_"):
+        style = data[11:]
+        logo_text = get_session(user_id, "logo_text")
+        if not logo_text:
+            await query.answer("❌ No logo text. Use /logo first.", show_alert=True)
+            return
+        set_session(user_id, "logo_style", style)
+        await msg.edit_text(
+            f"🎨 Choose **background** for: **{logo_text}** ({style} style)",
+            reply_markup=logo_bg_keyboard(style)
+        )
+        return
+
+    elif data.startswith("logo_bg_"):
+        parts = data[8:].split("_", 1)
+        style = parts[0]
+        bg = parts[1] if len(parts) > 1 else "dark"
+        logo_text = get_session(user_id, "logo_text")
+        if not logo_text:
+            await query.answer("❌ No logo text.", show_alert=True)
+            return
+        
+        await msg.edit_text("⏳ Generating logo...")
+        try:
+            loop = asyncio.get_running_loop()
+            img = await loop.run_in_executor(executor, lambda: make_logo(logo_text, style, bg))
+            bio = BytesIO()
+            bio.name = "logo.png"
+            img.save(bio, "PNG")
+            bio.seek(0)
+            await client.send_photo(
+                msg.chat.id,
+                photo=bio,
+                caption=f"🎨 **Logo Generated!**\nText: {logo_text}\nStyle: {style}\nBackground: {bg}",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔄 Make Another", callback_data="menu_logo"),
+                     InlineKeyboardButton("🏠 Home", callback_data="menu_main")],
+                ])
+            )
+            await msg.delete()
+            clear_session(user_id)
+        except Exception as e:
+            await msg.edit_text(f"❌ Logo error: {str(e)[:200]}")
+        return
+
+    # ── AI Gen ────────────────────────────────────────────────
+    elif data == "ai_txt2img":
+        set_session(user_id, "mode", "txt2img")
+        await msg.edit_text(
+            "🖼️ **Text to Image**\n\n"
+            "Send your prompt. Prefix with a style:\n"
+            "`gradient:`, `neon:`, `gold:`, `dark:`, `fire:`, `ocean:`\n\n"
+            "Example: `gradient:A beautiful sunset`",
+            reply_markup=cancel_keyboard()
+        )
+        return
+
+    elif data == "ai_txt2vid":
+        set_session(user_id, "mode", "txt2vid")
+        await msg.edit_text(
+            "🎬 **Text to Video**\n\nSend your video prompt:\n\n"
+            "Example: `A rocket launching into space`\n\n"
+            "Premium users get longer videos!",
+            reply_markup=cancel_keyboard()
+        )
+        return
+
+    elif data == "ai_edit":
+        set_session(user_id, "mode", "aiedit_prompt")
+        await msg.edit_text(
+            "🤖 **AI Edit Prompt**\n\n"
+            "Describe the edit you want (e.g., 'make it vintage and warm').\n"
+            "Then I'll suggest filters based on your description.\n\n"
+            "Example: `make it look like an oil painting with warm colors`",
+            reply_markup=cancel_keyboard()
+        )
+        return
+
+    elif data == "ai_style":
+        await msg.edit_text(
+            "🎨 **Style Transfer**\n\n"
+            "Send a photo, then choose a style to apply:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🖼️ Watercolor", callback_data="imgfilter_watercolor"),
+                 InlineKeyboardButton("🖌️ Oil Paint", callback_data="imgfilter_oil_paint")],
+                [InlineKeyboardButton("✏️ Sketch", callback_data="imgfilter_sketch"),
+                 InlineKeyboardButton("🎭 Cartoon", callback_data="imgfilter_cartoon")],
+                [InlineKeyboardButton("🏠 Home", callback_data="menu_main")],
+            ])
+        )
+        return
+
+    # ── Upload type selection ─────────────────────────────────
+    elif data == "upload_doc":
+        video_path = get_session(user_id, "video_path") or get_session(user_id, "edit_result_path")
+        if not video_path or not os.path.exists(video_path):
+            await query.answer("❌ No file found to upload.", show_alert=True)
+            return
+        await msg.edit_text("⬆️ Uploading as document...")
+        try:
+            await client.send_document(msg.chat.id, document=video_path,
+                                       caption="✅ **Here's your file!**",
+                                       reply_markup=after_video_keyboard())
+            await msg.delete()
+        except Exception as e:
+            await msg.edit_text(f"❌ Upload error: {str(e)[:200]}")
+        return
+
+    elif data == "upload_vid":
+        video_path = get_session(user_id, "video_path") or get_session(user_id, "edit_result_path")
+        if not video_path or not os.path.exists(video_path):
+            await query.answer("❌ No file found to upload.", show_alert=True)
+            return
+        await msg.edit_text("⬆️ Uploading as video...")
+        try:
+            await client.send_video(msg.chat.id, video=video_path,
+                                    caption="✅ **Here's your video!**",
+                                    reply_markup=after_video_keyboard())
+            await msg.delete()
+        except Exception as e:
+            await msg.edit_text(f"❌ Upload error: {str(e)[:200]}")
+        return
+
+    # ── Rename / Metadata do ──────────────────────────────────
+    elif data in ("do_rename", "do_metadata"):
+        rename_path = get_session(user_id, "rename_path")
+        if not rename_path or not os.path.exists(rename_path):
+            await query.answer("❌ No file found.", show_alert=True)
+            return
+        if data == "do_rename":
+            set_session(user_id, "mode", "rename")
+            await msg.edit_text(
+                "✏️ Type the **new filename** (with extension):\n\n"
+                "Example: `my_document.pdf`",
+                reply_markup=cancel_keyboard()
+            )
+        else:
+            set_session(user_id, "mode", "metadata")
+            set_session(user_id, "metadata_path", rename_path)
+            await show_metadata_menu(client, msg)
+        return
+
+    # ── Admin Panel Callbacks (Due to length, these will continue in Part 8) ──
+    else:
+        # Admin panel callbacks are handled in Part 8
+        await _handle_admin_callbacks(client, query, user_id, data, msg)
+
+
+# ============================================================
+# FIXED FLASK WEB DASHBOARD
+# ============================================================
+
+flask_app = Flask(__name__)
+
+DASHBOARD_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KiraFx Bot Dashboard</title>
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:'Segoe UI',sans-serif;background:#0a0a15;color:#e0e0ff;min-height:100vh}
+        .header{background:linear-gradient(135deg,#12122a,#1e0a40);padding:18px 28px;display:flex;
+                align-items:center;justify-content:space-between;border-bottom:1px solid #2d1b69;
+                position:sticky;top:0;z-index:10}
+        .header-left h1{font-size:1.4rem;color:#a78bfa;display:flex;align-items:center;gap:8px}
+        .header-left .sub{font-size:0.78rem;color:#777;margin-top:2px}
+        .online-dot{width:8px;height:8px;background:#22c55e;border-radius:50%;display:inline-block;
+                    animation:pulse 2s infinite}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+        .container{max-width:1280px;margin:0 auto;padding:24px 18px}
+        .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:24px}
+        .stat-card{background:#111125;border:1px solid #1f1f40;border-radius:12px;padding:18px;text-align:center;
+                   transition:transform 0.2s,border-color 0.2s}
+        .stat-card:hover{transform:translateY(-2px);border-color:#4c2d9c}
+        .stat-card .value{font-size:1.8rem;font-weight:700;color:#a78bfa}
+        .stat-card .label{font-size:0.78rem;color:#666;margin-top:4px;text-transform:uppercase;letter-spacing:0.05em}
+        .bar{height:6px;background:#1f1f40;border-radius:3px;overflow:hidden;margin-top:8px}
+        .bar-fill{height:100%;background:linear-gradient(90deg,#6d28d9,#a78bfa);border-radius:3px;transition:width 1s}
+        .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+        .section{background:#111125;border:1px solid #1f1f40;border-radius:12px;padding:20px;margin-bottom:16px}
+        .section h2{color:#a78bfa;margin-bottom:14px;font-size:1rem;display:flex;align-items:center;gap:6px}
+        table{width:100%;border-collapse:collapse}
+        th,td{padding:9px 12px;text-align:left;border-bottom:1px solid #1a1a32;font-size:0.84rem}
+        th{color:#7c5cbf;font-weight:600;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.04em}
+        td{color:#bbb}
+        tr:hover td{background:#15152a}
+        .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.72rem;font-weight:600}
+        .b-prem{background:#3d1d70;color:#a78bfa}
+        .b-free{background:#1a3a28;color:#4ade80}
+        .b-banned{background:#3b1a1a;color:#f87171}
+        .b-admin{background:#3d2c00;color:#fbbf24}
+        .b-owner{background:#3d0030;color:#f472b6}
+        .ok{color:#22c55e}.err{color:#f87171}
+        .refresh-bar{display:flex;justify-content:space-between;align-items:center;
+                     font-size:0.76rem;color:#555;margin-bottom:12px}
+        .logo{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#4b0082,#9400d3);
+              display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;
+              color:#fff;flex-shrink:0}
+        @media(max-width:600px){.stats-grid{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}}
+    </style>
+    <script>
+        let countdown = 30;
+        function tick(){
+            countdown--;
+            const el = document.getElementById('cdown');
+            if(el) el.textContent = countdown + 's';
+            if(countdown <= 0) location.reload();
+        }
+        setInterval(tick, 1000);
+        window.onload = () => {
+            const el = document.getElementById('lrt');
+            if(el) el.textContent = new Date().toLocaleTimeString();
+        };
+    </script>
+</head>
+<body>
+<div class="header">
+    <div class="header-left" style="display:flex;align-items:center;gap:12px">
+        <div class="logo">Kx</div>
+        <div>
+            <h1><span class="online-dot"></span> KiraFx Dashboard</h1>
+            <div class="sub">{{ bot_name }} • v{{ version }}</div>
+        </div>
+    </div>
+    <div style="text-align:right;font-size:0.76rem;color:#555">
+        <div>Refreshing in <span id="cdown">30</span></div>
+        <div>Last refresh: <span id="lrt">-</span></div>
+    </div>
+</div>
+<div class="container">
+    <div class="refresh-bar">
+        <span>📊 Live Statistics</span>
+        <span>Auto-refresh every 30s</span>
+    </div>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="value">{{ stats.total_users }}</div>
+            <div class="label">Total Users</div>
+        </div>
+        <div class="stat-card">
+            <div class="value">{{ stats.premium_users }}</div>
+            <div class="label">Premium</div>
+        </div>
+        <div class="stat-card">
+            <div class="value">{{ stats.banned_users }}</div>
+            <div class="label">Banned</div>
+        </div>
+        <div class="stat-card">
+            <div class="value">{{ stats.total_edits }}</div>
+            <div class="label">Total Edits</div>
+        </div>
+        <div class="stat-card">
+            <div class="value">{{ stats.today_edits }}</div>
+            <div class="label">Today's Edits</div>
+        </div>
+        <div class="stat-card">
+            <div class="value">{{ stats.today_users }}</div>
+            <div class="label">New Today</div>
+        </div>
+        <div class="stat-card">
+            <div class="value">{{ stats.uptime }}</div>
+            <div class="label">Uptime</div>
+        </div>
+        <div class="stat-card">
+            <div class="value">{{ stats.cpu }}%</div>
+            <div class="label">CPU</div>
+            <div class="bar"><div class="bar-fill" style="width:{{ stats.cpu }}%"></div></div>
+        </div>
+        <div class="stat-card">
+            <div class="value">{{ stats.mem }}%</div>
+            <div class="label">RAM</div>
+            <div class="bar"><div class="bar-fill" style="width:{{ stats.mem }}%"></div></div>
+        </div>
+    </div>
+    <div class="grid2">
+        <div class="section">
+            <h2>🔧 System Status</h2>
+            <table>
+                <tr><th>FFmpeg</th><td class="{{ 'ok' if stats.ffmpeg else 'err' }}">{{ '✅ Installed' if stats.ffmpeg else '❌ Not Found' }}</td></tr>
+                <tr><th>Database</th><td class="ok">✅ Connected</td></tr>
+                <tr><th>Maintenance</th><td>{{ '🔧 ON' if stats.maintenance else '✅ OFF' }}</td></tr>
+                <tr><th>Ads</th><td>{{ '✅ ON' if stats.ads_enabled else '❌ OFF' }}</td></tr>
+                <tr><th>Free Edits/Day</th><td>{{ stats.free_edits }}</td></tr>
+                <tr><th>Keep-Alive</th><td class="ok">✅ Active (60s)</td></tr>
+            </table>
+        </div>
+        <div class="section">
+            <h2>🎬 Bot Capabilities</h2>
+            <table>
+                <tr><th>Image Filters</th><td>{{ stats.image_filters }}+</td></tr>
+                <tr><th>Video Effects</th><td>{{ stats.video_effects }}+</td></tr>
+                <tr><th>Premium Plans</th><td>{{ stats.premium_plans }}</td></tr>
+                <tr><th>Compression Presets</th><td>{{ stats.comp_presets }}</td></tr>
+                <tr><th>Logo Styles</th><td>{{ stats.logo_styles }}</td></tr>
+                <tr><th>AI Styles</th><td>{{ stats.ai_styles }}</td></tr>
+            </table>
+        </div>
+    </div>
+    <div class="section">
+        <h2>👥 Recent Users</h2>
+        <table>
+            <thead>
+                <tr><th>ID</th><th>Name</th><th>Status</th><th>Edits</th><th>Coins</th><th>Joined</th></tr>
+            </thead>
+            <tbody>
+            {% for u in users %}
+            <tr>
+                <td><code>{{ u.user_id }}</code></td>
+                <td>{{ u.first_name }} {% if u.username %}<span style="color:#666">@{{ u.username }}</span>{% endif %}</td>
+                <td>
+                    {% if u.user_id == owner_id %}<span class="badge b-owner">Owner</span>
+                    {% elif u.is_banned %}<span class="badge b-banned">Banned</span>
+                    {% elif u.is_admin %}<span class="badge b-admin">Admin</span>
+                    {% elif u.is_premium %}<span class="badge b-prem">Premium</span>
+                    {% else %}<span class="badge b-free">Free</span>{% endif %}
+                </td>
+                <td>{{ u.total_edits }}</td>
+                <td>🪙 {{ u.coins }}</td>
+                <td>{{ u.joined_at[:10] }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>"""
+
+@flask_app.route("/")
+def dashboard():
+    """Main dashboard page."""
+    uptime_secs = int(time.time() - START_TIME)
+    h = uptime_secs // 3600
+    m = (uptime_secs % 3600) // 60
+    s = uptime_secs % 60
+    
+    users = get_db().execute("SELECT * FROM users ORDER BY joined_at DESC LIMIT 25").fetchall()
+    
+    stats = {
+        "total_users": get_user_count(),
+        "premium_users": get_premium_count(),
+        "banned_users": get_banned_count(),
+        "total_edits": get_total_edits(),
+        "today_edits": get_today_edits(),
+        "today_users": get_today_new_users(),
+        "uptime": f"{h:02d}h {m:02d}m {s:02d}s",
+        "cpu": round(psutil.cpu_percent(), 1),
+        "mem": round(psutil.virtual_memory().percent, 1),
+        "ffmpeg": check_ffmpeg(),
+        "maintenance": get_setting("maintenance_mode") == "1",
+        "free_edits": get_setting("free_edits_per_day", str(FREE_EDITS_PER_DAY)),
+        "ads_enabled": get_setting("ads_enabled") == "1",
+        "image_filters": len(IMAGE_FILTERS),
+        "video_effects": len(VIDEO_EFFECTS),
+        "premium_plans": len(PREMIUM_PLANS),
+        "comp_presets": len(COMPRESSION_PRESETS),
+        "logo_styles": len(LOGO_STYLES),
+        "ai_styles": len(AI_TEXT_IMAGE_STYLES),
+    }
+    
+    return render_template_string(
+        DASHBOARD_HTML,
+        stats=stats,
+        users=users,
+        bot_name=BOT_NAME,
+        version=BOT_VERSION,
+        owner_id=OWNER_ID,
+    )
+
+@flask_app.route("/api/stats")
+def api_stats():
+    """API endpoint for bot statistics."""
+    uptime_secs = int(time.time() - START_TIME)
+    return jsonify({
+        "bot_name": BOT_NAME,
+        "version": BOT_VERSION,
+        "total_users": get_user_count(),
+        "premium_users": get_premium_count(),
+        "banned_users": get_banned_count(),
+        "total_edits": get_total_edits(),
+        "today_edits": get_today_edits(),
+        "uptime_seconds": uptime_secs,
+        "ffmpeg": check_ffmpeg(),
+        "cpu": psutil.cpu_percent(),
+        "memory": psutil.virtual_memory().percent,
+        "maintenance": get_setting("maintenance_mode") == "1",
+    })
+
+@flask_app.route("/health")
+def health():
+    """Health check endpoint."""
+    return jsonify({
+        "status": "ok",
+        "bot": BOT_NAME,
+        "version": BOT_VERSION,
+        "uptime": int(time.time() - START_TIME)
+    })
+
+@flask_app.route("/api/users")
+def api_users():
+    """API endpoint for user list."""
+    limit = int(flask_request.args.get("limit", 20))
+    users = get_db().execute(
+        f"SELECT user_id, first_name, username, is_premium, total_edits, coins FROM users ORDER BY joined_at DESC LIMIT {limit}"
+    ).fetchall()
+    return jsonify([dict(u) for u in users])
+
+def run_flask():
+    """Run Flask web dashboard in a daemon thread."""
+    flask_app.run(host="0.0.0.0", port=FLASK_PORT, debug=False, use_reloader=False)
+
+# ============================================================
+# FIXED KEEP-ALIVE AND CLEANUP LOOPS
+# ============================================================
+
+def keep_alive_ping():
+    """Ping health endpoint every 60 seconds to stay alive."""
+    while True:
+        try:
+            req_lib.get(f"http://localhost:{FLASK_PORT}/health", timeout=10)
+        except Exception:
+            pass
+        # Also ping external URL if configured
+        if KEEP_ALIVE_URL:
+            try:
+                req_lib.get(KEEP_ALIVE_URL, timeout=10)
+            except Exception:
+                pass
+        time.sleep(60)
+
+def temp_cleanup_loop():
+    """Periodic temp file cleanup every 30 minutes."""
+    while True:
+        time.sleep(1800)
+        cleanup_temp_files(1800)
+        cleanup_sessions()
+        logger.info("Performed periodic cleanup")
+
+# ============================================================
+# FIXED MAIN ENTRY POINT
+# ============================================================
+
+def main():
+    """Main entry point for the bot."""
+    logger.info(f"=" * 60)
+    logger.info(f"Starting {BOT_NAME} v{BOT_VERSION}")
+    logger.info(f"=" * 60)
+
+    # Init database
+    init_db()
+
+    # Check FFmpeg
+    if check_ffmpeg():
+        logger.info("FFmpeg found ✅")
+    else:
+        logger.warning("FFmpeg NOT found ❌ — Video features will be limited")
+
+    # Start Flask dashboard
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    logger.info(f"Flask dashboard started on port {FLASK_PORT}")
+
+    # Start keep-alive thread (pings every 60s)
+    ka_thread = threading.Thread(target=keep_alive_ping, daemon=True)
+    ka_thread.start()
+    logger.info("Keep-alive started (every 60s)")
+
+    # Start temp cleanup thread
+    cleanup_thread = threading.Thread(target=temp_cleanup_loop, daemon=True)
+    cleanup_thread.start()
+    logger.info("Temp cleanup thread started (every 30 minutes)")
+
+    logger.info("Starting Telegram bot...")
+    logger.info(f"Bot username: @{app.me.username if hasattr(app, 'me') else 'unknown'}")
+    
+    try:
+        app.run()
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        raise
+
+if __name__ == "__main__":
+    main()
+    
