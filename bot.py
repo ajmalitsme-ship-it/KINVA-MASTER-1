@@ -5923,6 +5923,10 @@ def temp_cleanup_loop():
 # FIXED MAIN ENTRY POINT
 # ============================================================
 
+# ============================================================
+# FIXED MAIN ENTRY POINT (Remove the problematic line)
+# ============================================================
+
 def main():
     """Main entry point for the bot."""
     logger.info(f"=" * 60)
@@ -5931,6 +5935,9 @@ def main():
 
     # Init database
     init_db()
+    
+    # Initialize AI tables
+    init_ai_tables()
 
     # Check FFmpeg
     if check_ffmpeg():
@@ -5954,7 +5961,9 @@ def main():
     logger.info("Temp cleanup thread started (every 30 minutes)")
 
     logger.info("Starting Telegram bot...")
-    logger.info(f"Bot username: @{app.me.username if hasattr(app, 'me') else 'unknown'}")
+    
+    # REMOVED THE PROBLEMATIC LINE:
+    # logger.info(f"Bot username: @{app.me.username if hasattr(app, 'me') else 'unknown'}")
     
     try:
         app.run()
@@ -5966,4 +5975,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
