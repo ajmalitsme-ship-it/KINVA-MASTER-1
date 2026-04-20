@@ -5937,7 +5937,7 @@ def main():
     init_db()
     
     # Initialize AI tables
-    init_ai_tables()
+    #init_ai_tables()
 
     # Check FFmpeg
     if check_ffmpeg():
