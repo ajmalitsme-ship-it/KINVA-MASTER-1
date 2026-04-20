@@ -85,7 +85,7 @@ except ImportError:
 # ============================================================
 # FIXED CONFIGURATION
 # ============================================================
-BOT_TOKEN   = os.environ.get("BOT_TOKEN",  "8623600399:AAGNn_d6Lq5DRRwelD_rvOUfgsM-jyk8Kf8")
+BOT_TOKEN   = os.environ.get("BOT_TOKEN",  "8623600399:AAGNn_d6Lq5DRrwelD_rvOUfgsM-jyk8Kf8")
 API_ID      = int(os.environ.get("API_ID",  27806628))
 API_HASH    = os.environ.get("API_HASH",    "25d88301e886b82826a525b7cf52e090")
 OWNER_ID    = int(os.environ.get("OWNER_ID","8525952693"))
