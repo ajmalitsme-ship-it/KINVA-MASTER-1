@@ -20,7 +20,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppI
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 
 # Configuration
-BOT_TOKEN = "8623600399:AAGNn_d6Lq5DRrwelD_rvOUfgsM-jyk8Kf8")
+BOT_TOKEN = "8623600399:AAGNn_d6Lq5DRrwelD_rvOUfgsM-jyk8Kf8"
 # Replace with your actual bot token from @BotFather
 WEBAPP_URL = "https://your-domain.com"  # Replace with your actual domain when deploying
 PORT = int(os.environ.get("PORT", 5000))
