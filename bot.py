@@ -1,6 +1,3 @@
-Here is a complete, advanced animation maker web app with Telegram bot integration, AI drawing tools, and a professional UI/UX, all in a single Python file.
-
-```python
 import os
 import json
 import uuid
